@@ -1,0 +1,64 @@
+/* dainkennison.com styles, by... um... dain kennison */
+:root {
+  --body-font: "Inter", sans-serif; /* thanks google fonts */
+
+  /* thanks fluid-type-scale.com */
+  --fs-sm: clamp(0.8rem, -0.07vi + 0.82rem, 0.73rem);
+  --fs-base: clamp(1rem, 0.21vi + 0.94rem, 1.19rem);
+  --fs-md: clamp(1.25rem, 0.75vi + 1.03rem, 1.92rem);
+  --fs-lg: clamp(1.56rem, 1.72vi + 1.05rem, 3.11rem);
+  --fs-xl: clamp(1.95rem, 3.42vi + 0.93rem, 5.03rem);
+  --fs-xxl: clamp(2.44rem, 6.33vi + 0.55rem, 8.14rem);
+  --fs-xxxl: clamp(3.05rem, 11.23vi + -0.31rem, 13.17rem);
+
+  --heading-line-height: 0.85;
+  --body-line-height: 1.6;
+
+  --background-color: #0E0C0A;
+  --foreground-color: #fff;
+}
+
+/* Quick Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+html {
+  line-height: 1.15; /* Better default than browser quirks */
+}
+body {
+  min-height: 100vh; /* Ensures body fills viewport */
+}
+
+body, .font-inter {
+  font-family: var(--body-font);
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+  font-size: var(--fs-base);
+  line-height: var(--body-line-height);
+}
+h1, .h1, h2, .h2, h3, .h3, 
+h4, .h4, h5, .h5, h6, .h6 {
+  line-height: var(--heading-line-height);
+  text-transform: uppercase;
+  font-weight: 700;
+  text-box: trim-both cap alphabetic;
+}
+h1, .h1 {
+  font-size: var(--fs-xxxl);
+  letter-spacing: -0.05em;
+}
+
+body {
+  text-align: center;
+  background-color: var(--background-color);
+  color: var(--foreground-color);
+}
+.container {
+  max-width: 1920px;
+  margin: 0 auto;
+  text-align: left;
+  padding: 2vw;
+}
