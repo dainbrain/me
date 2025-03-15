@@ -76,6 +76,7 @@ body {
   margin-left: auto;
   margin-bottom: 5vh;
   width: clamp(77.7px, 7.77vi, 777px);
+  height: auto;
 }
 h1 {
   margin-bottom: 5vh;
@@ -98,11 +99,13 @@ a:hover {
   display: block;
   transform: translateX(-14%);
   width: clamp(200px, 16vw, 287px);
+  height: auto;
 }
 .me {
   display: block;
   float: right;
   width: clamp(300px, 31vi, 660px);
+  height: auto;
   margin-bottom: 3vh;
 }
 @media (max-width: 967px) {
