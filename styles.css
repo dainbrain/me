@@ -12,12 +12,13 @@
   --fs-xxxl: clamp(3.05rem, 11.23vi + -0.31rem, 13.17rem);
 
   --heading-line-height: 0.85;
-  --body-line-height: 1.6;
+  --body-line-height: clamp(1.4rem, 2.4vh, 1.6rem);
 
   --background-color: #0E0C0A;
-  --foreground-color: #fff;
+  --foreground-color: #F2F2F2;
+  --foreground-shade: #c5c1c1;
+  --highlight-color: #58C2FF;
 }
-
 /* Quick Reset */
 * {
   margin: 0;
@@ -25,7 +26,7 @@
   box-sizing: border-box;
 }
 html {
-  line-height: 1.15; /* Better default than browser quirks */
+  line-height: var(--body-line-height);
 }
 body {
   min-height: 100vh; /* Ensures body fills viewport */
@@ -45,20 +46,69 @@ h4, .h4, h5, .h5, h6, .h6 {
   text-transform: uppercase;
   font-weight: 700;
   text-box: trim-both cap alphabetic;
+  color: var(--foreground-color);
 }
 h1, .h1 {
   font-size: var(--fs-xxxl);
   letter-spacing: -0.05em;
+  margin-left: -0.05em;
 }
 
 body {
   text-align: center;
   background-color: var(--background-color);
-  color: var(--foreground-color);
+  color: var(--foreground-shade);
 }
 .container {
-  max-width: 1920px;
+  position: relative;
+  width: clamp(320px, 70vw, 1480px);
   margin: 0 auto;
   text-align: left;
-  padding: 2vw;
+  min-height: 100vh;
+  padding-bottom: 5vh;
+}
+.content  {
+  position: relative;
+  padding: 10vh clamp(9px, 2vw, 43px) 0;
+}
+.monogram {
+  display: block;
+  margin-left: auto;
+  margin-bottom: 5vh;
+  width: clamp(77.7px, 7.77vi, 777px);
+}
+h1 {
+  margin-bottom: 5vh;
+  white-space: nowrap;
+  font-size: clamp(43px, 9.4vi, 199px);
+}
+p {
+  width: clamp(300px, 33.333vi, 696px);
+  text-align: justify;
+  margin-bottom: 5vh;
+}
+a, a:visited {
+  color: var(--foreground-color);
+  transition: color 0.25s ease;
+  text-decoration: none;
+}
+a:hover {
+  color: var(--highlight-color);
+}
+.signature {
+  display: block;
+  transform: translateX(-14%);
+  width: clamp(200px, 16vw, 287px);
+}
+.me {
+  display: block;
+  float: right;
+  width: clamp(300px, 31vi, 660px);
+  margin-bottom: 3vh;
+}
+@media (max-width: 967px) {
+  .me {
+    float: none;
+    width: 100%;
+  }
 }
