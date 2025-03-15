@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smooth Falloff Halftone</title>
+  <style>
+    body, html { margin: 0; padding: 0; height: 100vh; overflow: hidden; }
+    canvas { position: absolute; top: 0; left: 0; }
+  </style>
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.128/build/three.module.js';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+    camera.position.z = 1;
+
+    const renderer = new THREE.WebGLRenderer({ alpha: true });
+    renderer.setClearColor(0x000000, 0);
+    document.body.appendChild(renderer.domElement);
+
+    const texture = new THREE.TextureLoader().load('me-nobg2.png', (loadedTexture) => {
+      const width = loadedTexture.image.width;
+      const height = loadedTexture.image.height;
+      renderer.setSize(width, height);
+    });
+
+    const geometry = new THREE.PlaneGeometry(2, 2);
+
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        u_texture: { value: texture },
+        u_mouse: { value: new THREE.Vector2(0, 0) },
+        u_radius: { value: 0.2 },  
+        u_maxScale: { value: 1.5 }
+      },
+      vertexShader: `
+        varying vec2 v_uv;
+        void main() {
+          v_uv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D u_texture;
+        uniform vec2 u_mouse;       // Optional: for mouse interaction
+        uniform float u_radius;     // Optional: mouse effect radius
+        uniform float u_maxScale;   // Optional: max scale for mouse effect
+        varying vec2 v_uv;
+
+        void main() {
+          // Define grid density (adjust this value: higher = smaller dots)
+          float gridDensity = 100.0;
+          
+          // Calculate which grid cell this fragment is in
+          vec2 gridCell = floor(v_uv * gridDensity) / gridDensity;
+          // Get the center of the grid cell
+          vec2 gridCenter = gridCell + 0.5 / gridDensity;
+
+          // Sample the texture ONCE at the grid cell’s center
+          vec4 color = texture2D(u_texture, gridCenter);
+
+          // Skip rendering if the center is transparent
+          if (color.a < 0.1) {
+            gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+            return;
+          }
+
+          // Calculate dot size based on brightness (average RGB)
+          float brightness = (color.r + color.g + color.b) / 3.0;
+          float baseSize = (1.0 - brightness) * 0.5; // Smaller multiplier for smaller dots
+
+          // Optional mouse interaction (remove or set scale = 1.0 to disable)
+          float scale = 1.0;
+          float dist = distance(gridCenter, u_mouse);
+          if (dist < u_radius) {
+            float t = dist / u_radius;
+            float easedT = t * t;
+            scale = mix(u_maxScale, 1.0, easedT);
+          }
+          float dotSize = baseSize * scale;
+
+          // Calculate distance from this fragment to the grid center
+          vec2 gridPos = fract(v_uv * gridDensity);
+          float distToCenter = length(gridPos - 0.5);
+
+          // Draw the dot with the solid color from the grid center
+          if (distToCenter < dotSize) {
+            gl_FragColor = vec4(color.rgb, 1.0); // Solid color from grid center
+          } else {
+            gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0); // Transparent background
+          }
+        }
+      `
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+
+    const mouse = new THREE.Vector2();
+    window.addEventListener('mousemove', (event) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const x = (event.clientX - rect.left) / rect.width;
+      const y = 1.0 - (event.clientY - rect.top) / rect.height;
+      material.uniforms.u_mouse.value.set(x, y);
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</head>
+<body style="background: #fff;"></body>
+</html>
