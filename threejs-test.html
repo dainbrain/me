@@ -1,116 +1,299 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smooth Falloff Halftone</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>point cloud from image with depth map</title>
   <style>
-    body, html { margin: 0; padding: 0; height: 100vh; overflow: hidden; }
-    canvas { position: absolute; top: 0; left: 0; }
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+    }
   </style>
   <script type="module">
-    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.128/build/three.module.js';
+    import * as THREE from 'three';
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
-    camera.position.z = 1;
+    document.addEventListener('DOMContentLoaded', function () {
+      const canvas = document.getElementById('canvas');
+      const scene = new THREE.Scene();
 
-    const renderer = new THREE.WebGLRenderer({ alpha: true });
-    renderer.setClearColor(0x000000, 0);
-    document.body.appendChild(renderer.domElement);
+      const camera = new THREE.OrthographicCamera(-500, 500, 500, -500, 0.1, 1000);
+      camera.position.set(0, 0, 500);
+      camera.lookAt(0, 0, 0);
+      
+      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+      renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+      renderer.setClearColor(0x000000, 0);
 
-    const texture = new THREE.TextureLoader().load('me-nobg2.png', (loadedTexture) => {
-      const width = loadedTexture.image.width;
-      const height = loadedTexture.image.height;
-      renderer.setSize(width, height);
-    });
-
-    const geometry = new THREE.PlaneGeometry(2, 2);
-
-    const material = new THREE.ShaderMaterial({
-      uniforms: {
-        u_texture: { value: texture },
-        u_mouse: { value: new THREE.Vector2(0, 0) },
-        u_radius: { value: 0.2 },  
-        u_maxScale: { value: 1.5 }
-      },
-      vertexShader: `
-        varying vec2 v_uv;
-        void main() {
-          v_uv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform sampler2D u_texture;
-        uniform vec2 u_mouse;       // Optional: for mouse interaction
-        uniform float u_radius;     // Optional: mouse effect radius
-        uniform float u_maxScale;   // Optional: max scale for mouse effect
-        varying vec2 v_uv;
-
-        void main() {
-          // Define grid density (adjust this value: higher = smaller dots)
-          float gridDensity = 100.0;
-          
-          // Calculate which grid cell this fragment is in
-          vec2 gridCell = floor(v_uv * gridDensity) / gridDensity;
-          // Get the center of the grid cell
-          vec2 gridCenter = gridCell + 0.5 / gridDensity;
-
-          // Sample the texture ONCE at the grid cell’s center
-          vec4 color = texture2D(u_texture, gridCenter);
-
-          // Skip rendering if the center is transparent
-          if (color.a < 0.1) {
-            gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
-            return;
-          }
-
-          // Calculate dot size based on brightness (average RGB)
-          float brightness = (color.r + color.g + color.b) / 3.0;
-          float baseSize = (1.0 - brightness) * 0.5; // Smaller multiplier for smaller dots
-
-          // Optional mouse interaction (remove or set scale = 1.0 to disable)
-          float scale = 1.0;
-          float dist = distance(gridCenter, u_mouse);
-          if (dist < u_radius) {
-            float t = dist / u_radius;
-            float easedT = t * t;
-            scale = mix(u_maxScale, 1.0, easedT);
-          }
-          float dotSize = baseSize * scale;
-
-          // Calculate distance from this fragment to the grid center
-          vec2 gridPos = fract(v_uv * gridDensity);
-          float distToCenter = length(gridPos - 0.5);
-
-          // Draw the dot with the solid color from the grid center
-          if (distToCenter < dotSize) {
-            gl_FragColor = vec4(color.rgb, 1.0); // Solid color from grid center
+      // For zooming in to the point cloud.
+      let targetWidth = 0, targetHeight = 0;
+      const marginFactor = 1.1;
+      function updateCameraFrustum() {
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        if (targetWidth && targetHeight) {
+          const canvasAspect = width / height;
+          const imageAspect = targetWidth / targetHeight;
+          let camLeft, camRight, camTop, camBottom;
+          if (canvasAspect >= imageAspect) {
+            const camHeight = targetHeight * marginFactor;
+            const camWidth = camHeight * canvasAspect;
+            camTop = camHeight / 2;
+            camBottom = -camHeight / 2;
+            camLeft = -camWidth / 2;
+            camRight = camWidth / 2;
           } else {
-            gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0); // Transparent background
+            const camWidth = targetWidth * marginFactor;
+            const camHeight = camWidth / canvasAspect;
+            camLeft = -camWidth / 2;
+            camRight = camWidth / 2;
+            camTop = camHeight / 2;
+            camBottom = -camHeight / 2;
+          }
+          camera.left = camLeft;
+          camera.right = camRight;
+          camera.top = camTop;
+          camera.bottom = camBottom;
+          camera.updateProjectionMatrix();
+        }
+        renderer.setSize(width, height, false);
+        updatePointScale(); // Update the point scale based on new canvas width.
+      }
+      window.addEventListener('resize', updateCameraFrustum);
+
+      // Track mouse position
+      const mouse = new THREE.Vector2();
+      const raycaster = new THREE.Raycaster();
+      raycaster.params.Points = { threshold: 10 };
+      window.addEventListener('mousemove', (event) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      });
+
+      // Track if the mouse is over the canvas.
+      let mouseIsOver = false;
+      canvas.addEventListener('mouseenter', () => { mouseIsOver = true; });
+      canvas.addEventListener('mouseleave', () => { mouseIsOver = false; });
+
+      // Use a userAgent check to detect mobile.
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+      // Device orientation variables
+      let useDeviceOrientation = false;
+      let deviceRotationX = 0;
+      let deviceRotationY = 0;
+      if (isMobile && window.DeviceOrientationEvent) {
+        window.addEventListener("deviceorientation", (event) => {
+          const maxAngle = THREE.MathUtils.degToRad(20);
+          deviceRotationX = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(event.beta || 0), -maxAngle, maxAngle);
+          deviceRotationY = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(event.gamma || 0), -maxAngle, maxAngle);
+          useDeviceOrientation = true;
+        });
+      }
+
+      // Function to compute point size based on canvas width.
+      function computePointSize(width) {
+        const minWidth = 300;
+        const maxWidth = 1200;
+        const minSize = 2;
+        const maxSize = 6;
+        if (width <= minWidth) return minSize;
+        if (width >= maxWidth) return maxSize;
+        return minSize + ((width - minWidth) * (maxSize - minSize)) / (maxWidth - minWidth);
+      }
+
+      // Update the uniform used for point scaling.
+      function updatePointScale() {
+        if (points && points.material.uniforms && points.material.uniforms.pointScale) {
+          points.material.uniforms.pointScale.value = computePointSize(canvas.clientWidth);
+        }
+      }
+
+      // Load images from public folder
+      const img = new Image();
+      img.src = '/me-nobg.png';
+      const depthImg = new Image();
+      depthImg.src = '/me-nobg-depthmap.jpg';
+
+      let imagesLoaded = 0;
+      const onImageLoad = () => {
+        imagesLoaded++;
+        if (imagesLoaded === 2) {
+          processImages();
+        }
+      };
+      img.onload = onImageLoad;
+      depthImg.onload = onImageLoad;
+
+      let geometry;
+      let points;
+      let originalPositions;
+      // Set the base size to 1; the actual displayed size is scaled by the uniform.
+      const BASE_PARTICLE_SIZE = 1;
+
+      function processImages() {
+        const imgCanvas = document.createElement('canvas');
+        imgCanvas.width = img.width;
+        imgCanvas.height = img.height;
+        const imgCtx = imgCanvas.getContext('2d');
+        imgCtx.drawImage(img, 0, 0);
+        const imgData = imgCtx.getImageData(0, 0, img.width, img.height).data;
+
+        const depthCanvas = document.createElement('canvas');
+        depthCanvas.width = depthImg.width;
+        depthCanvas.height = depthImg.height;
+        const depthCtx = depthCanvas.getContext('2d');
+        depthCtx.drawImage(depthImg, 0, 0);
+        const depthData = depthCtx.getImageData(0, 0, depthImg.width, depthImg.height).data;
+
+        geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const colors = [];
+        const sizes = [];
+        const step = 3;
+        const alphaThreshold = 10;
+
+        for (let y = 0; y < img.height; y += step) {
+          for (let x = 0; x < img.width; x += step) {
+            const idx = (y * img.width + x) * 4;
+            const alpha = imgData[idx + 3];
+            if (alpha > alphaThreshold) {
+              const px = x - img.width / 2;
+              const py = -(y - img.height / 2);
+              const pz = (depthData[idx] / 255) * 100;
+              positions.push(px, py, pz);
+              const r = imgData[idx] / 255;
+              const g = imgData[idx + 1] / 255;
+              const b = imgData[idx + 2] / 255;
+              colors.push(r, g, b);
+              sizes.push(BASE_PARTICLE_SIZE);
+            }
           }
         }
-      `
+        originalPositions = new Float32Array(positions);
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+
+        targetWidth = img.width;
+        targetHeight = img.height;
+        updateCameraFrustum();
+
+        // Updated shaders: the vertex shader multiplies the base size by the pointScale uniform.
+        const vertexShader = `
+          attribute float size;
+          attribute vec3 color;
+          varying vec3 vColor;
+          uniform float pointScale;
+          void main() {
+            vColor = color;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = size * pointScale;
+            gl_Position = projectionMatrix * mvPosition;
+          }
+        `;
+        const fragmentShader = `
+          varying vec3 vColor;
+          void main() {
+            vec2 coord = gl_PointCoord - vec2(0.5);
+            if (length(coord) > 0.5) discard;
+            gl_FragColor = vec4(vColor, 1.0);
+          }
+        `;
+        // Create the material with the new uniform.
+        const material = new THREE.ShaderMaterial({
+          uniforms: {
+            pointScale: { value: computePointSize(canvas.clientWidth) }
+          },
+          vertexShader: vertexShader,
+          fragmentShader: fragmentShader,
+        });
+        points = new THREE.Points(geometry, material);
+        scene.add(points);
+
+        camera.position.z = 500;
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        updatePoints();
+        updateObjectRotation();
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      function updatePoints() {
+        if (!points || !originalPositions) return;
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObject(points);
+        const positions = geometry.attributes.position.array;
+        const smoothingFactor = 0.1;
+        for (let i = 0; i < positions.length / 3; i++) {
+          const originalX = originalPositions[i * 3];
+          const originalY = originalPositions[i * 3 + 1];
+          const originalZ = originalPositions[i * 3 + 2];
+          let targetX = originalX;
+          let targetY = originalY;
+          let targetZ = originalZ;
+          if (intersects.length > 0) {
+            const intersectPoint = intersects[0].point;
+            const maxDistance = 66;
+            const scatterStrength = 33;
+            const px = positions[i * 3];
+            const py = positions[i * 3 + 1];
+            const pz = positions[i * 3 + 2];
+            const dx = px - intersectPoint.x;
+            const dy = py - intersectPoint.y;
+            const dz = pz - intersectPoint.z;
+            const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (distance < maxDistance && distance > 0) {
+              const factor = (1 - distance / maxDistance) * scatterStrength;
+              const scatterX = (dx / distance) * factor;
+              const scatterY = (dy / distance) * factor;
+              const scatterZ = (dz / distance) * factor;
+              targetX = originalX + scatterX;
+              targetY = originalY + scatterY;
+              targetZ = originalZ + scatterZ;
+            }
+          }
+          positions[i * 3] += (targetX - positions[i * 3]) * smoothingFactor;
+          positions[i * 3 + 1] += (targetY - positions[i * 3 + 1]) * smoothingFactor;
+          positions[i * 3 + 2] += (targetZ - positions[i * 3 + 2]) * smoothingFactor;
+        }
+        geometry.attributes.position.needsUpdate = true;
+      }
+
+      function updateObjectRotation() {
+        if (!points) return;
+        const maxAngle = THREE.MathUtils.degToRad(20);
+        let targetRotationX, targetRotationY;
+        if (isMobile && useDeviceOrientation) {
+          targetRotationX = deviceRotationX;
+          targetRotationY = deviceRotationY;
+        } else if (mouseIsOver) {
+          targetRotationX = mouse.y * maxAngle;
+          targetRotationY = -mouse.x * maxAngle;
+        } else {
+          targetRotationX = 0;
+          targetRotationY = 0;
+        }
+        points.rotation.x += (targetRotationX - points.rotation.x) * 0.1;
+        points.rotation.y += (targetRotationY - points.rotation.y) * 0.1;
+      }
     });
-
-    const mesh = new THREE.Mesh(geometry, material);
-    scene.add(mesh);
-
-    const mouse = new THREE.Vector2();
-    window.addEventListener('mousemove', (event) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      const x = (event.clientX - rect.left) / rect.width;
-      const y = 1.0 - (event.clientY - rect.top) / rect.height;
-      material.uniforms.u_mouse.value.set(x, y);
-    });
-
-    function animate() {
-      requestAnimationFrame(animate);
-      renderer.render(scene, camera);
-    }
-    animate();
   </script>
 </head>
-<body style="background: #fff;"></body>
+<body style="background: #444;">
+  <canvas id="canvas"></canvas>
+</body>
 </html>

@@ -68,25 +68,31 @@ body {
   padding-bottom: 5vh;
 }
 .content  {
-  position: relative;
   padding: 10vh clamp(9px, 2vw, 43px) 0;
+}
+.content-bottom {
+  position: relative;
 }
 .monogram {
   display: block;
-  margin-left: auto;
-  margin-bottom: 5vh;
-  width: clamp(77.7px, 7.77vi, 777px);
+  width: clamp(77.7px, 10.77vi, 777px);
   height: auto;
 }
+hr {
+  border: 0;
+  height: 0;
+  border-bottom: 1px solid var(--foreground-shade);
+  margin: 5vh 0;
+}
 h1 {
-  margin-bottom: 5vh;
   white-space: nowrap;
   font-size: clamp(43px, 9.4vi, 199px);
 }
 p {
   width: clamp(300px, 33.333vi, 696px);
   text-align: justify;
-  margin-bottom: 5vh;
+  padding-bottom: 10vh;
+  position: relative;
 }
 a, a:visited {
   color: var(--foreground-color);
@@ -97,20 +103,27 @@ a:hover {
 }
 .signature {
   display: block;
-  transform: translateX(-14%);
+  position: absolute;
+  transform: translate3d(-14%, -40%, 0);
   width: clamp(200px, 16vw, 287px);
   height: auto;
 }
 .me {
   display: block;
-  float: right;
-  width: clamp(300px, 31vi, 660px);
+  position: absolute;
+  top: 100%;
+  right: -6vw;
+  width: clamp(300px, 60vi, 1200px);
   height: auto;
-  margin-bottom: 3vh;
+  aspect-ratio: 1 / 1;
+  background: center / 91% no-repeat url('me-nobg-shadow.png');
+  transform: translateY(-91%);
 }
 @media (max-width: 967px) {
   .me {
-    float: none;
+    position: relative;
+    top: 0; left: 0;
+    transform: none;
     width: 100%;
   }
 }
