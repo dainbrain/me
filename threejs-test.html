@@ -133,8 +133,8 @@
           let mappedBeta = mapRange(beta, 60, 120, -maxAngle, maxAngle);
           // Map gamma from -30° to 30°.
           let mappedGamma = mapRange(gamma, -30, 30, -maxAngle, maxAngle);
-          // Add a small offset (e.g., 5°) so that when held upright it isn't completely neutral.
-          const offset = THREE.MathUtils.degToRad(5);
+          // Add a small offset (e.g., 15°) so that when held upright it isn't completely neutral.
+          const offset = THREE.MathUtils.degToRad(15);
           deviceRotationX = THREE.MathUtils.clamp(mappedBeta + offset, -maxAngle, maxAngle);
           deviceRotationY = THREE.MathUtils.clamp(mappedGamma + offset, -maxAngle, maxAngle);
           useDeviceOrientation = true;
