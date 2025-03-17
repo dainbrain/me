@@ -113,7 +113,7 @@ a:hover {
   position: absolute;
   top: 100%;
   right: -6vw;
-  width: clamp(300px, 60vi, 1200px);
+  width: clamp(300px, 60vi, 1152px);
   height: auto;
   aspect-ratio: 1 / 1;
   background: center / 91% no-repeat url('me-nobg-shadow.png');

@@ -161,11 +161,11 @@
 
       // For point scaling based on canvas width.
       function computePointSize(width) {
-        const minWidth = 300;
-        const maxWidth = 1200;
+        const minWidth = 363;
+        const maxWidth = 1152;
         // Adjusted min/max sizes.
-        const minSize = 2.5;
-        const maxSize = 6;
+        const minSize = 2.8;
+        const maxSize = 5;
         if (width <= minWidth) return minSize;
         if (width >= maxWidth) return maxSize;
         return minSize + ((width - minWidth) * (maxSize - minSize)) / (maxWidth - minWidth);
