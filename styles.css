@@ -123,7 +123,8 @@ a:hover {
   .me {
     position: relative;
     top: 0; left: 0;
-    transform: none;
+    transform: translateY(-8%);
+    margin-top: -12vh;
     width: 100%;
   }
 }

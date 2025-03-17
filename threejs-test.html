@@ -20,7 +20,8 @@
     }
   </style>
   <script type="module">
-    import * as THREE from 'three';
+    // Using CDN import for three.js
+    import * as THREE from 'https://unpkg.com/three@0.174.0/build/three.module.js';
 
     document.addEventListener('DOMContentLoaded', function () {
       const canvas = document.getElementById('canvas');
@@ -66,42 +67,81 @@
           camera.updateProjectionMatrix();
         }
         renderer.setSize(width, height, false);
-        updatePointScale(); // Update the point scale based on new canvas width.
+        updatePointScale(); // Update point scale based on canvas width.
       }
       window.addEventListener('resize', updateCameraFrustum);
 
-      // Track mouse position
+      // Track mouse/touch position (used for raycasting and bulge effect)
       const mouse = new THREE.Vector2();
       const raycaster = new THREE.Raycaster();
       raycaster.params.Points = { threshold: 10 };
+
+      // Update mouse vector for mouse events.
       window.addEventListener('mousemove', (event) => {
         const rect = canvas.getBoundingClientRect();
         mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       });
 
-      // Track if the mouse is over the canvas.
+      // Also update mouse vector for touch events.
+      canvas.addEventListener('touchstart', (event) => {
+        mouseIsOver = true;
+        const rect = canvas.getBoundingClientRect();
+        const touch = event.touches[0];
+        mouse.x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
+      });
+      canvas.addEventListener('touchmove', (event) => {
+        const rect = canvas.getBoundingClientRect();
+        const touch = event.touches[0];
+        mouse.x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
+      });
+      canvas.addEventListener('touchend', () => {
+        mouseIsOver = false;
+      });
+
+      // Track if the mouse is over the canvas (for desktop hover effects).
       let mouseIsOver = false;
       canvas.addEventListener('mouseenter', () => { mouseIsOver = true; });
       canvas.addEventListener('mouseleave', () => { mouseIsOver = false; });
 
-      // Use a userAgent check to detect mobile.
+      // Detect mobile via userAgent.
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-      // Device orientation variables
+      // Device orientation variables.
       let useDeviceOrientation = false;
       let deviceRotationX = 0;
       let deviceRotationY = 0;
+
+      // Helper: Map a value from one range to another.
+      function mapRange(value, inMin, inMax, outMin, outMax) {
+        return outMin + ((value - inMin) * (outMax - outMin)) / (inMax - inMin);
+      }
+
+      // In this example we map:
+      // - event.beta (front-to-back tilt) from [60, 120] degrees to [-maxAngle, maxAngle]
+      // - event.gamma (left-right tilt) from [-30, 30] degrees to [-maxAngle, maxAngle]
+      // And we add a small offset (5°) so that even when held upright there's a slight rotation.
       if (isMobile && window.DeviceOrientationEvent) {
         window.addEventListener("deviceorientation", (event) => {
           const maxAngle = THREE.MathUtils.degToRad(20);
-          deviceRotationX = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(event.beta || 0), -maxAngle, maxAngle);
-          deviceRotationY = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(event.gamma || 0), -maxAngle, maxAngle);
+          // Adjust these ranges and offsets as needed.
+          const beta = event.beta || 0;
+          const gamma = event.gamma || 0;
+          // Map beta from 60° to 120°.
+          let mappedBeta = mapRange(beta, 60, 120, -maxAngle, maxAngle);
+          // Map gamma from -30° to 30°.
+          let mappedGamma = mapRange(gamma, -30, 30, -maxAngle, maxAngle);
+          // Add a small offset (e.g., 5°) so that when held upright it isn't completely neutral.
+          const offset = THREE.MathUtils.degToRad(5);
+          deviceRotationX = THREE.MathUtils.clamp(mappedBeta + offset, -maxAngle, maxAngle);
+          deviceRotationY = THREE.MathUtils.clamp(mappedGamma + offset, -maxAngle, maxAngle);
           useDeviceOrientation = true;
         });
       }
 
-      // Function to compute point size based on canvas width.
+      // For point scaling based on canvas width.
       function computePointSize(width) {
         const minWidth = 300;
         const maxWidth = 1200;
@@ -111,15 +151,13 @@
         if (width >= maxWidth) return maxSize;
         return minSize + ((width - minWidth) * (maxSize - minSize)) / (maxWidth - minWidth);
       }
-
-      // Update the uniform used for point scaling.
       function updatePointScale() {
         if (points && points.material.uniforms && points.material.uniforms.pointScale) {
           points.material.uniforms.pointScale.value = computePointSize(canvas.clientWidth);
         }
       }
 
-      // Load images from public folder
+      // Load images from public folder.
       const img = new Image();
       img.src = '/me-nobg.png';
       const depthImg = new Image();
@@ -138,7 +176,7 @@
       let geometry;
       let points;
       let originalPositions;
-      // Set the base size to 1; the actual displayed size is scaled by the uniform.
+      // The base particle size is 1; the displayed size is scaled by the uniform.
       const BASE_PARTICLE_SIZE = 1;
 
       function processImages() {
@@ -210,7 +248,6 @@
             gl_FragColor = vec4(vColor, 1.0);
           }
         `;
-        // Create the material with the new uniform.
         const material = new THREE.ShaderMaterial({
           uniforms: {
             pointScale: { value: computePointSize(canvas.clientWidth) }
