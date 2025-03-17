@@ -129,7 +129,7 @@
       canvas.addEventListener('mouseenter', () => { mouseIsOver = true; });
       canvas.addEventListener('mouseleave', () => { mouseIsOver = false; });
 
-      // Detect mobile via userAgent.
+      // Use a userAgent check to detect mobile.
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
       // Device orientation variables.
@@ -142,21 +142,16 @@
         return outMin + ((value - inMin) * (outMax - outMin)) / (inMax - inMin);
       }
 
-      // In this example we map:
-      // - event.beta (front-to-back tilt) from [60, 120] degrees to [-maxAngle, maxAngle]
-      // - event.gamma (left-right tilt) from [-30, 30] degrees to [-maxAngle, maxAngle]
-      // And we add a small offset (5°) so that even when held upright there's a slight rotation.
+      // For mobile devices, map device orientation to rotation.
+      // (Adjusted ranges and offsets as needed.)
       if (isMobile && window.DeviceOrientationEvent) {
         window.addEventListener("deviceorientation", (event) => {
           const maxAngle = THREE.MathUtils.degToRad(20);
-          // Adjust these ranges and offsets as needed.
-          const beta = event.beta || 0;
-          const gamma = event.gamma || 0;
-          // Map beta from 60° to 120°.
+          const beta = event.beta || 0;    // front-back tilt
+          const gamma = event.gamma || 0;  // left-right tilt
           let mappedBeta = mapRange(beta, 60, 120, -maxAngle, maxAngle);
-          // Map gamma from -30° to 30°.
           let mappedGamma = mapRange(gamma, -30, 30, -maxAngle, maxAngle);
-          // Add a small offset (e.g., 15°) so that when held upright it isn't completely neutral.
+          // Changed offset from 5° to 15%
           const offset = THREE.MathUtils.degToRad(15);
           deviceRotationX = THREE.MathUtils.clamp(mappedBeta + offset, -maxAngle, maxAngle);
           deviceRotationY = THREE.MathUtils.clamp(mappedGamma + offset, -maxAngle, maxAngle);
@@ -168,6 +163,7 @@
       function computePointSize(width) {
         const minWidth = 300;
         const maxWidth = 1200;
+        // Adjusted min/max sizes.
         const minSize = 2.5;
         const maxSize = 6;
         if (width <= minWidth) return minSize;
@@ -250,7 +246,7 @@
         targetHeight = img.height;
         updateCameraFrustum();
 
-        // Updated shaders: the vertex shader multiplies the base size by the pointScale uniform.
+        // Updated shaders: vertex shader multiplies the base size by the pointScale uniform.
         const vertexShader = `
           attribute float size;
           attribute vec3 color;
@@ -292,47 +288,63 @@
       }
       animate();
 
+      // Update points. On desktop, use raycaster to apply bulge effect.
+      // On mobile, skip the scatter effect and simply smooth back to original positions.
       function updatePoints() {
         if (!points || !originalPositions) return;
-        raycaster.setFromCamera(mouse, camera);
-        const intersects = raycaster.intersectObject(points);
         const positions = geometry.attributes.position.array;
         const smoothingFactor = 0.1;
-        for (let i = 0; i < positions.length / 3; i++) {
-          const originalX = originalPositions[i * 3];
-          const originalY = originalPositions[i * 3 + 1];
-          const originalZ = originalPositions[i * 3 + 2];
-          let targetX = originalX;
-          let targetY = originalY;
-          let targetZ = originalZ;
-          if (intersects.length > 0) {
-            const intersectPoint = intersects[0].point;
-            const maxDistance = 66;
-            const scatterStrength = 33;
-            const px = positions[i * 3];
-            const py = positions[i * 3 + 1];
-            const pz = positions[i * 3 + 2];
-            const dx = px - intersectPoint.x;
-            const dy = py - intersectPoint.y;
-            const dz = pz - intersectPoint.z;
-            const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            if (distance < maxDistance && distance > 0) {
-              const factor = (1 - distance / maxDistance) * scatterStrength;
-              const scatterX = (dx / distance) * factor;
-              const scatterY = (dy / distance) * factor;
-              const scatterZ = (dz / distance) * factor;
-              targetX = originalX + scatterX;
-              targetY = originalY + scatterY;
-              targetZ = originalZ + scatterZ;
+        if (!isMobile) {
+          // Desktop: use raycasting-based bulge effect.
+          raycaster.setFromCamera(mouse, camera);
+          const intersects = raycaster.intersectObject(points);
+          for (let i = 0; i < positions.length / 3; i++) {
+            const originalX = originalPositions[i * 3];
+            const originalY = originalPositions[i * 3 + 1];
+            const originalZ = originalPositions[i * 3 + 2];
+            let targetX = originalX;
+            let targetY = originalY;
+            let targetZ = originalZ;
+            if (intersects.length > 0) {
+              const intersectPoint = intersects[0].point;
+              const maxDistance = 66;
+              const scatterStrength = 33;
+              const px = positions[i * 3];
+              const py = positions[i * 3 + 1];
+              const pz = positions[i * 3 + 2];
+              const dx = px - intersectPoint.x;
+              const dy = py - intersectPoint.y;
+              const dz = pz - intersectPoint.z;
+              const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (distance < maxDistance && distance > 0) {
+                const factor = (1 - distance / maxDistance) * scatterStrength;
+                const scatterX = (dx / distance) * factor;
+                const scatterY = (dy / distance) * factor;
+                const scatterZ = (dz / distance) * factor;
+                targetX = originalX + scatterX;
+                targetY = originalY + scatterY;
+                targetZ = originalZ + scatterZ;
+              }
             }
+            positions[i * 3] += (targetX - positions[i * 3]) * smoothingFactor;
+            positions[i * 3 + 1] += (targetY - positions[i * 3 + 1]) * smoothingFactor;
+            positions[i * 3 + 2] += (targetZ - positions[i * 3 + 2]) * smoothingFactor;
           }
-          positions[i * 3] += (targetX - positions[i * 3]) * smoothingFactor;
-          positions[i * 3 + 1] += (targetY - positions[i * 3 + 1]) * smoothingFactor;
-          positions[i * 3 + 2] += (targetZ - positions[i * 3 + 2]) * smoothingFactor;
+        } else {
+          // Mobile: just smooth back to original positions.
+          for (let i = 0; i < positions.length / 3; i++) {
+            const originalX = originalPositions[i * 3];
+            const originalY = originalPositions[i * 3 + 1];
+            const originalZ = originalPositions[i * 3 + 2];
+            positions[i * 3] += (originalX - positions[i * 3]) * smoothingFactor;
+            positions[i * 3 + 1] += (originalY - positions[i * 3 + 1]) * smoothingFactor;
+            positions[i * 3 + 2] += (originalZ - positions[i * 3 + 2]) * smoothingFactor;
+          }
         }
         geometry.attributes.position.needsUpdate = true;
       }
 
+      // Update rotation: On mobile use device orientation, on desktop use mouse (when over).
       function updateObjectRotation() {
         if (!points) return;
         const maxAngle = THREE.MathUtils.degToRad(20);
