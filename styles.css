@@ -1,5 +1,6 @@
 /* dainkennison.com styles, by... um... dain kennison */
 :root {
+  --heading-font: "Unbounded", sans-serif;
   --body-font: "Inter", sans-serif; /* thanks google fonts */
 
   /* thanks fluid-type-scale.com */
@@ -42,6 +43,7 @@ body, .font-inter {
 }
 h1, .h1, h2, .h2, h3, .h3, 
 h4, .h4, h5, .h5, h6, .h6 {
+  font-family: var(--heading-font);
   line-height: var(--heading-line-height);
   text-transform: uppercase;
   font-weight: 700;
@@ -49,7 +51,7 @@ h4, .h4, h5, .h5, h6, .h6 {
   color: var(--foreground-color);
 }
 h1, .h1 {
-  font-size: var(--fs-xxxl);
+  font-size: var(--fs-xxl);
   letter-spacing: -0.05em;
   margin-left: -0.05em;
 }
@@ -86,7 +88,8 @@ hr {
 }
 h1 {
   white-space: nowrap;
-  font-size: clamp(43px, 9.4vi, 199px);
+  font-weight: 532; /* nice variable font */
+  font-size: clamp(33px, 7.13vi, 151px);
 }
 p {
   width: clamp(300px, 33.333vi, 696px);
