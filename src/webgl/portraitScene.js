@@ -176,12 +176,15 @@ export function initPortraitScene(canvas) {
   let introStartPositions;
   let introStartTime = 0;
   let introProgress = 1;
+  let interactionInfluences;
+  let interactionHasHit = false;
+  let lastInteractionSampleTime = 0;
+  let frameCount = 0;
 
   // Track page visibility and recent interaction to reduce idle work.
   let isPageVisible = typeof document === 'undefined' ? true : !document.hidden;
   let lastPointerMoveTime = 0;
   let lastDeviceMotionTime = 0;
-  const ACTIVE_TIMEOUT_MS = 5000;
 
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
@@ -230,15 +233,17 @@ export function initPortraitScene(canvas) {
   const BROWNIAN_OFFSET_DAMP = 0.985;
   const BROWNIAN_MAX_OFFSET = 2.5;
   const BROWNIAN_Z_DAMPING = 0.6;
-  const EDGE_TURBULENCE_GAIN = 10.0;
-  const EDGE_TURBULENCE_CLAMP_GAIN = 50.0;
-  const EDGE_TURBULENCE_START = 0.25;
+  const EDGE_TURBULENCE_GAIN = 8.0;
+  const EDGE_TURBULENCE_CLAMP_GAIN = 80.0;
+  const EDGE_TURBULENCE_START = 0.1;
   const EDGE_TURBULENCE_FULL = 1.0;
-  const EDGE_TURBULENCE_CURVE = 1.0;
+  const EDGE_TURBULENCE_CURVE = 0.5;
   const EDGE_DISTANCE_FALLOFF_CELLS = 8;
   const INTRO_DURATION_MS = 800;
   const INTRO_SCATTER_XY = 0.35;
   const INTRO_SCATTER_Z = 0.5;
+  const INTERACTION_SAMPLE_INTERVAL_MS = 1000 / 30;
+  const INTERACTION_ACTIVE_WINDOW_MS = 350;
 
   function processImages() {
     const imgCanvas = document.createElement('canvas');
@@ -378,6 +383,7 @@ export function initPortraitScene(canvas) {
     driftOffsets = new Float32Array(positions.length);
     driftVelocities = new Float32Array(positions.length);
     edgeFactors = rawEdgeFactors;
+    interactionInfluences = new Float32Array(sizes.length);
     randomStates = new Uint32Array(sizes.length);
     for (let i = 0; i < randomStates.length; i += 1) {
       randomStates[i] = (i * 9781 + 0x9e3779b9) >>> 0;
@@ -477,17 +483,42 @@ export function initPortraitScene(canvas) {
       introEase = 1 - Math.pow(1 - t, 5);
     }
 
-    // Desktop: use raycasting to drive point size, not position.
-    let intersectPoint = null;
-    if (!isMobile && !introActive && hasPointerPosition) {
+    // Gate interaction/raycast work more aggressively while preserving ambient motion.
+    const interactionActive =
+      !isMobile &&
+      !introActive &&
+      hasPointerPosition &&
+      (mouseIsOver || now - lastPointerMoveTime < INTERACTION_ACTIVE_WINDOW_MS);
+
+    // Decouple interaction sampling from full frame rate.
+    const shouldSampleInteraction =
+      interactionActive && now - lastInteractionSampleTime >= INTERACTION_SAMPLE_INTERVAL_MS;
+
+    if (shouldSampleInteraction && interactionInfluences) {
+      lastInteractionSampleTime = now;
+      interactionHasHit = false;
       // Ensure raycasting uses the latest object transform.
       points.updateMatrixWorld(true);
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObject(points);
       if (intersects.length > 0) {
+        interactionHasHit = true;
         // Convert world-space hit point into the point cloud's local space.
-        intersectPoint = points.worldToLocal(intersects[0].point.clone());
+        const intersectPoint = points.worldToLocal(intersects[0].point.clone());
+        for (let i = 0; i < interactionInfluences.length; i += 1) {
+          const baseIndex = i * 3;
+          const dx = originalPositions[baseIndex] - intersectPoint.x;
+          const dy = originalPositions[baseIndex + 1] - intersectPoint.y;
+          const dz = originalPositions[baseIndex + 2] - intersectPoint.z;
+          const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          interactionInfluences[i] =
+            distance > 0 && distance < MAX_RADIUS ? 1 - distance / MAX_RADIUS : 0;
+        }
+      } else {
+        interactionInfluences.fill(0);
       }
+    } else if (!interactionActive) {
+      interactionHasHit = false;
     }
 
     for (let i = 0; i < positions.length / 3; i += 1) {
@@ -514,17 +545,10 @@ export function initPortraitScene(canvas) {
       let targetZ = originalZ;
 
       if (!isMobile && activations) {
-        let influence = 0;
-
-        if (intersectPoint) {
-          const dx = originalX - intersectPoint.x;
-          const dy = originalY - intersectPoint.y;
-          const dz = originalZ - intersectPoint.z;
-          const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-          if (distance < MAX_RADIUS && distance > 0) {
-            influence = 1 - distance / MAX_RADIUS;
-          }
-        }
+        const influence =
+          interactionActive && interactionHasHit && interactionInfluences
+            ? interactionInfluences[i]
+            : 0;
 
         // Decay previous activation and apply new influence to create a trail.
         activation = activations[i] || 0;
@@ -538,6 +562,7 @@ export function initPortraitScene(canvas) {
         sizes[i] = BASE_PARTICLE_SIZE * sizeMultiplier;
 
         // Random per-point vibration: farther from cursor trail = more motion.
+        // Motion is also hard-gated by silhouette edge factor.
         const driftMix = Math.max(0, 1 - activation);
         const silhouetteEdge = edgeFactors ? edgeFactors[i] : 0;
         const ramp = MathUtils.smootherstep(
@@ -546,8 +571,31 @@ export function initPortraitScene(canvas) {
           EDGE_TURBULENCE_FULL,
         );
         const edgeFactor = Math.pow(ramp, EDGE_TURBULENCE_CURVE);
+        const edgeMotion = driftMix * edgeFactor;
         const edgeTurbulence = 1 + edgeFactor * EDGE_TURBULENCE_GAIN;
         const velocityIndex = baseIndex;
+
+        // Skip most work for fully-settled points; update one in four frames.
+        const settledVelocity =
+          Math.abs(driftVelocities[velocityIndex]) +
+          Math.abs(driftVelocities[velocityIndex + 1]) +
+          Math.abs(driftVelocities[velocityIndex + 2]);
+        const settledOffset =
+          Math.abs(driftOffsets[velocityIndex]) +
+          Math.abs(driftOffsets[velocityIndex + 1]) +
+          Math.abs(driftOffsets[velocityIndex + 2]);
+        const isSettled =
+          influence === 0 &&
+          activation < 0.002 &&
+          settledVelocity < 0.0006 &&
+          settledOffset < 0.0015;
+        if (isSettled && ((frameCount + i) & 3) !== 0) {
+          positions[baseIndex] += (originalX - positions[baseIndex]) * 0.05;
+          positions[baseIndex + 1] += (originalY - positions[baseIndex + 1]) * 0.05;
+          positions[baseIndex + 2] += (originalZ - positions[baseIndex + 2]) * 0.05;
+          continue;
+        }
+
         let state = randomStates[i];
         state = (state * 1664525 + 1013904223) >>> 0;
         const randX = state / 4294967295 - 0.5;
@@ -557,15 +605,24 @@ export function initPortraitScene(canvas) {
         const randZ = state / 4294967295 - 0.5;
         randomStates[i] = state;
 
+        if (edgeMotion <= 0.0001) {
+          // Outside the edge-turbulence band: settle quickly to no motion.
+          driftVelocities[velocityIndex] *= 0.75;
+          driftVelocities[velocityIndex + 1] *= 0.75;
+          driftVelocities[velocityIndex + 2] *= 0.75;
+          driftOffsets[velocityIndex] *= 0.85;
+          driftOffsets[velocityIndex + 1] *= 0.85;
+          driftOffsets[velocityIndex + 2] *= 0.85;
+        } else {
         driftVelocities[velocityIndex] =
           driftVelocities[velocityIndex] * BROWNIAN_VELOCITY_DAMP +
-          randX * BROWNIAN_ACCEL * driftMix * edgeTurbulence;
+          randX * BROWNIAN_ACCEL * edgeMotion * edgeTurbulence;
         driftVelocities[velocityIndex + 1] =
           driftVelocities[velocityIndex + 1] * BROWNIAN_VELOCITY_DAMP +
-          randY * BROWNIAN_ACCEL * driftMix * edgeTurbulence;
+          randY * BROWNIAN_ACCEL * edgeMotion * edgeTurbulence;
         driftVelocities[velocityIndex + 2] =
           driftVelocities[velocityIndex + 2] * BROWNIAN_VELOCITY_DAMP +
-          randZ * BROWNIAN_ACCEL * BROWNIAN_Z_DAMPING * driftMix * edgeTurbulence;
+          randZ * BROWNIAN_ACCEL * BROWNIAN_Z_DAMPING * edgeMotion * edgeTurbulence;
 
         driftOffsets[velocityIndex] =
           (driftOffsets[velocityIndex] + driftVelocities[velocityIndex]) * BROWNIAN_OFFSET_DAMP;
@@ -592,10 +649,11 @@ export function initPortraitScene(canvas) {
           -maxOffset * BROWNIAN_Z_DAMPING,
           maxOffset * BROWNIAN_Z_DAMPING,
         );
+        }
 
-        targetX += driftOffsets[velocityIndex] * driftMix;
-        targetY += driftOffsets[velocityIndex + 1] * driftMix;
-        targetZ += driftOffsets[velocityIndex + 2] * driftMix;
+        targetX += driftOffsets[velocityIndex] * edgeMotion;
+        targetY += driftOffsets[velocityIndex + 1] * edgeMotion;
+        targetZ += driftOffsets[velocityIndex + 2] * edgeMotion;
       } else {
         // On mobile, keep the base size.
         sizes[i] = BASE_PARTICLE_SIZE;
@@ -640,6 +698,7 @@ export function initPortraitScene(canvas) {
     if (!shouldAnimate()) {
       return;
     }
+    frameCount += 1;
     updateObjectRotation();
     updatePoints();
     renderer.render(scene, camera);
