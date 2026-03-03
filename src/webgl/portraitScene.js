@@ -1,13 +1,24 @@
-import * as THREE from 'three';
+import {
+  Scene,
+  OrthographicCamera,
+  WebGLRenderer,
+  Vector2,
+  Raycaster,
+  MathUtils,
+  BufferGeometry,
+  Float32BufferAttribute,
+  ShaderMaterial,
+  Points,
+} from 'three';
 
 export function initPortraitScene(canvas) {
-  const scene = new THREE.Scene();
+  const scene = new Scene();
 
-  const camera = new THREE.OrthographicCamera(-500, 500, 500, -500, 0.1, 1000);
+  const camera = new OrthographicCamera(-500, 500, 500, -500, 0.1, 1000);
   camera.position.set(0, 0, 500);
   camera.lookAt(0, 0, 0);
 
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+  const renderer = new WebGLRenderer({ canvas, alpha: true });
   renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
   renderer.setClearColor(0x000000, 0);
 
@@ -51,8 +62,8 @@ export function initPortraitScene(canvas) {
   window.addEventListener('resize', updateCameraFrustum);
 
   // Track mouse/touch position (used for raycasting and bulge effect)
-  const mouse = new THREE.Vector2();
-  const raycaster = new THREE.Raycaster();
+  const mouse = new Vector2();
+  const raycaster = new Raycaster();
   raycaster.params.Points = { threshold: 10 };
 
   // Track if the mouse is over the canvas (for desktop hover effects).
@@ -63,10 +74,14 @@ export function initPortraitScene(canvas) {
     const rect = canvas.getBoundingClientRect();
     mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    lastPointerMoveTime = now;
   });
 
   canvas.addEventListener('mouseenter', () => {
     mouseIsOver = true;
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    lastPointerMoveTime = now;
   });
   canvas.addEventListener('mouseleave', () => {
     mouseIsOver = false;
@@ -79,6 +94,8 @@ export function initPortraitScene(canvas) {
     const touch = event.touches[0];
     mouse.x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    lastPointerMoveTime = now;
   });
 
   canvas.addEventListener('touchmove', (event) => {
@@ -86,6 +103,8 @@ export function initPortraitScene(canvas) {
     const touch = event.touches[0];
     mouse.x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    lastPointerMoveTime = now;
   });
 
   canvas.addEventListener('touchend', () => {
@@ -111,23 +130,25 @@ export function initPortraitScene(canvas) {
   // For mobile devices, map device orientation to rotation.
   if (isMobile && window.DeviceOrientationEvent) {
     window.addEventListener('deviceorientation', (event) => {
-      const maxAngle = THREE.MathUtils.degToRad(20);
+      const maxAngle = MathUtils.degToRad(20);
       const beta = event.beta || 0; // front-back tilt
       const gamma = event.gamma || 0; // left-right tilt
       const mappedBeta = mapRange(beta, 60, 120, -maxAngle, maxAngle);
       const mappedGamma = mapRange(gamma, -30, 30, -maxAngle, maxAngle);
-      const offset = THREE.MathUtils.degToRad(15);
-      deviceRotationX = THREE.MathUtils.clamp(
+      const offset = MathUtils.degToRad(15);
+      deviceRotationX = MathUtils.clamp(
         mappedBeta + offset,
         -maxAngle,
         maxAngle,
       );
-      deviceRotationY = THREE.MathUtils.clamp(
+      deviceRotationY = MathUtils.clamp(
         mappedGamma + offset,
         -maxAngle,
         maxAngle,
       );
       useDeviceOrientation = true;
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      lastDeviceMotionTime = now;
     });
   }
 
@@ -143,6 +164,19 @@ export function initPortraitScene(canvas) {
   }
 
   let points;
+  let hasGeometry = false;
+
+  // Track page visibility and recent interaction to reduce idle work.
+  let isPageVisible = typeof document === 'undefined' ? true : !document.hidden;
+  let lastPointerMoveTime = 0;
+  let lastDeviceMotionTime = 0;
+  const ACTIVE_TIMEOUT_MS = 5000;
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      isPageVisible = !document.hidden;
+    });
+  }
 
   function updatePointScale() {
     if (points && points.material.uniforms && points.material.uniforms.pointScale) {
@@ -188,7 +222,7 @@ export function initPortraitScene(canvas) {
     depthCtx.drawImage(depthImg, 0, 0);
     const depthData = depthCtx.getImageData(0, 0, depthImg.width, depthImg.height).data;
 
-    geometry = new THREE.BufferGeometry();
+    geometry = new BufferGeometry();
     const positions = [];
     const colors = [];
     const sizes = [];
@@ -214,9 +248,9 @@ export function initPortraitScene(canvas) {
     }
 
     originalPositions = new Float32Array(positions);
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+    geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
+    geometry.setAttribute('size', new Float32BufferAttribute(sizes, 1));
 
     targetWidth = img.width;
     targetHeight = img.height;
@@ -244,7 +278,7 @@ export function initPortraitScene(canvas) {
       }
     `;
 
-    const material = new THREE.ShaderMaterial({
+    const material = new ShaderMaterial({
       uniforms: {
         pointScale: { value: computePointSize(canvas.clientWidth) },
       },
@@ -252,10 +286,34 @@ export function initPortraitScene(canvas) {
       fragmentShader,
     });
 
-    points = new THREE.Points(geometry, material);
+    points = new Points(geometry, material);
     scene.add(points);
 
     camera.position.z = 500;
+    hasGeometry = true;
+
+    // Render once immediately so the portrait appears even before interaction.
+    renderer.render(scene, camera);
+  }
+
+  function shouldAnimate() {
+    if (!hasGeometry || !isPageVisible) return false;
+
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
+    if (mouseIsOver) {
+      return true;
+    }
+
+    if (now - lastPointerMoveTime < ACTIVE_TIMEOUT_MS) {
+      return true;
+    }
+
+    if (isMobile && useDeviceOrientation && now - lastDeviceMotionTime < ACTIVE_TIMEOUT_MS) {
+      return true;
+    }
+
+    return false;
   }
 
   function updatePoints() {
@@ -316,7 +374,7 @@ export function initPortraitScene(canvas) {
 
   function updateObjectRotation() {
     if (!points) return;
-    const maxAngle = THREE.MathUtils.degToRad(20);
+    const maxAngle = MathUtils.degToRad(20);
     let targetRotationX;
     let targetRotationY;
 
@@ -337,6 +395,9 @@ export function initPortraitScene(canvas) {
 
   function animate() {
     requestAnimationFrame(animate);
+    if (!shouldAnimate()) {
+      return;
+    }
     updatePoints();
     updateObjectRotation();
     renderer.render(scene, camera);
