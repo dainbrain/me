@@ -265,16 +265,19 @@ export function initPortraitScene(canvas) {
     const colors = [];
     const sizes = [];
     const step = 3;
+    const rowStagger = step * 0.5;
     const alphaThreshold = 10;
     const pointGridX = [];
     const pointGridY = [];
 
     for (let y = 0; y < img.height; y += step) {
+      const rowIndex = Math.floor(y / step);
+      const rowOffset = rowIndex % 2 === 0 ? 0 : rowStagger;
       for (let x = 0; x < img.width; x += step) {
         const idx = (y * img.width + x) * 4;
         const alpha = imgData[idx + 3];
         if (alpha > alphaThreshold) {
-          const px = x - img.width / 2;
+          const px = x - img.width / 2 + rowOffset;
           const py = -(y - img.height / 2);
           const pz = (depthData[idx] / 255) * 100;
           positions.push(px, py, pz);
