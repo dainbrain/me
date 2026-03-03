@@ -244,6 +244,7 @@ export function initPortraitScene(canvas) {
   const INTRO_SCATTER_Z = 0.5;
   const INTERACTION_SAMPLE_INTERVAL_MS = 1000 / 30;
   const INTERACTION_ACTIVE_WINDOW_MS = 350;
+  const SAMPLE_COLOR_AFTER_STAGGER = true;
 
   function processImages() {
     const imgCanvas = document.createElement('canvas');
@@ -270,20 +271,50 @@ export function initPortraitScene(canvas) {
     const pointGridX = [];
     const pointGridY = [];
 
+    function sampleBilinear(data, width, height, sx, sy) {
+      const x = MathUtils.clamp(sx, 0, width - 1);
+      const y = MathUtils.clamp(sy, 0, height - 1);
+      const x0 = Math.floor(x);
+      const y0 = Math.floor(y);
+      const x1 = Math.min(x0 + 1, width - 1);
+      const y1 = Math.min(y0 + 1, height - 1);
+      const tx = x - x0;
+      const ty = y - y0;
+
+      const idx00 = (y0 * width + x0) * 4;
+      const idx10 = (y0 * width + x1) * 4;
+      const idx01 = (y1 * width + x0) * 4;
+      const idx11 = (y1 * width + x1) * 4;
+
+      const mix00_10 = (a, b) => a + (b - a) * tx;
+      const mixTop = (ch) => mix00_10(data[idx00 + ch], data[idx10 + ch]);
+      const mixBottom = (ch) => mix00_10(data[idx01 + ch], data[idx11 + ch]);
+      const value = (ch) => mixTop(ch) + (mixBottom(ch) - mixTop(ch)) * ty;
+
+      return {
+        r: value(0),
+        g: value(1),
+        b: value(2),
+        a: value(3),
+      };
+    }
+
     for (let y = 0; y < img.height; y += step) {
       const rowIndex = Math.floor(y / step);
       const rowOffset = rowIndex % 2 === 0 ? 0 : rowStagger;
       for (let x = 0; x < img.width; x += step) {
-        const idx = (y * img.width + x) * 4;
-        const alpha = imgData[idx + 3];
+        const sampleX = SAMPLE_COLOR_AFTER_STAGGER ? x + rowOffset : x;
+        const rgba = sampleBilinear(imgData, img.width, img.height, sampleX, y);
+        const alpha = rgba.a;
         if (alpha > alphaThreshold) {
           const px = x - img.width / 2 + rowOffset;
           const py = -(y - img.height / 2);
-          const pz = (depthData[idx] / 255) * 100;
+          const depthSample = sampleBilinear(depthData, depthImg.width, depthImg.height, sampleX, y);
+          const pz = (depthSample.r / 255) * 100;
           positions.push(px, py, pz);
-          const r = imgData[idx] / 255;
-          const g = imgData[idx + 1] / 255;
-          const b = imgData[idx + 2] / 255;
+          const r = rgba.r / 255;
+          const g = rgba.g / 255;
+          const b = rgba.b / 255;
           colors.push(r, g, b);
           sizes.push(BASE_PARTICLE_SIZE);
           pointGridX.push(Math.floor(x / step));
