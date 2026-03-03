@@ -1,0 +1,165 @@
+/* dainkennison.com styles, by... um... dain kennison */
+:root {
+  --heading-font: "Unbounded", sans-serif;
+  --body-font: "Inter", sans-serif; /* thanks google fonts */
+
+  /* thanks fluid-type-scale.com */
+  --fs-sm: clamp(0.8rem, -0.07vi + 0.82rem, 0.73rem);
+  --fs-base: clamp(1rem, 0.21vi + 0.94rem, 1.19rem);
+  --fs-md: clamp(1.25rem, 0.75vi + 1.03rem, 1.92rem);
+  --fs-lg: clamp(1.56rem, 1.72vi + 1.05rem, 3.11rem);
+  --fs-xl: clamp(1.95rem, 3.42vi + 0.93rem, 5.03rem);
+  --fs-xxl: clamp(2.44rem, 6.33vi + 0.55rem, 8.14rem);
+  --fs-xxxl: clamp(3.05rem, 11.23vi + -0.31rem, 13.17rem);
+
+  --heading-line-height: 0.85;
+  --body-line-height: clamp(1.4rem, 2.4vh, 1.6rem);
+
+  --background-color: #0E0C0A;
+  --foreground-color: #F2F2F2;
+  --foreground-shade: #c5c1c1;
+  --highlight-color: #58C2FF;
+}
+
+/* Quick Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  line-height: var(--body-line-height);
+}
+
+body {
+  min-height: 100vh; /* Ensures body fills viewport */
+}
+
+body,
+.font-inter {
+  font-family: var(--body-font);
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+  font-size: var(--fs-base);
+  line-height: var(--body-line-height);
+}
+
+h1,
+.h1,
+h2,
+.h2,
+h3,
+.h3,
+h4,
+.h4,
+h5,
+.h5,
+h6,
+.h6 {
+  font-family: var(--heading-font);
+  line-height: var(--heading-line-height);
+  text-transform: uppercase;
+  font-weight: 700;
+  text-box: trim-both cap alphabetic;
+  color: var(--foreground-color);
+}
+
+h1,
+.h1 {
+  font-size: var(--fs-xxl);
+  letter-spacing: -0.05em;
+  margin-left: -0.05em;
+}
+
+body {
+  text-align: center;
+  background-color: var(--background-color);
+  color: var(--foreground-shade);
+}
+
+.container {
+  position: relative;
+  width: clamp(320px, 70vw, 1480px);
+  margin: 0 auto;
+  text-align: left;
+  min-height: 100vh;
+  padding-bottom: 5vh;
+}
+
+.content {
+  padding: 10vh clamp(9px, 2vw, 43px) 0;
+}
+
+.content-bottom {
+  position: relative;
+}
+
+.monogram {
+  display: block;
+  width: clamp(77.7px, 10.77vi, 777px);
+  height: auto;
+}
+
+hr {
+  border: 0;
+  height: 0;
+  border-bottom: 1px solid var(--foreground-shade);
+  margin: 5vh 0;
+}
+
+h1 {
+  white-space: nowrap;
+  font-weight: 532; /* nice variable font */
+  font-size: clamp(33px, 7.13vi, 151px);
+}
+
+p {
+  width: clamp(300px, 33.333vi, 696px);
+  text-align: justify;
+  padding-bottom: 10vh;
+  position: relative;
+}
+
+a,
+a:visited {
+  color: var(--foreground-color);
+  transition: color 0.25s ease;
+}
+
+a:hover {
+  color: var(--highlight-color);
+}
+
+.signature {
+  display: block;
+  position: absolute;
+  transform: translate3d(-14%, -40%, 0);
+  width: clamp(200px, 16vw, 287px);
+  height: auto;
+}
+
+.me {
+  display: block;
+  position: absolute;
+  top: 100%;
+  right: -6vw;
+  width: clamp(300px, 60vi, 1152px);
+  height: auto;
+  aspect-ratio: 1 / 1;
+  background: center / 91% no-repeat url('/me-nobg-shadow.png');
+  transform: translateY(-91%);
+}
+
+@media (max-width: 967px) {
+  .me {
+    position: relative;
+    top: 0;
+    left: 0;
+    transform: translate3d(-10%, -6%, 0);
+    margin-top: -12vh;
+    width: 120%;
+  }
+}
+
