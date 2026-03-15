@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loop</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #000; }
+    #start { position: fixed; inset: 0; background: #000; cursor: pointer; display: none; align-items: center; justify-content: center; color: #222; font: 12px sans-serif; }
+    #start.show { display: flex; }
+  </style>
+</head>
+<body>
+  <div id="start">Click to start</div>
+  <audio id="a1" loop></audio>
+  <audio id="a2" loop></audio>
+  <script>
+    if (!sessionStorage.getItem('refreshed')) {
+      sessionStorage.setItem('refreshed', '1');
+      location.reload();
+      throw 0;
+    }
+    const r = () => Math.random().toString(36).slice(2);
+    const a1 = document.getElementById('a1');
+    const a2 = document.getElementById('a2');
+    const start = document.getElementById('start');
+    a1.src = 'freesound_community-firefight-70199.mp3?' + r();
+    a2.src = 'lazychillzone-air-raid-siren-225303.mp3?' + r();
+    Promise.all([a1.play(), a2.play()]).catch(() => start.classList.add('show'));
+    start.addEventListener('click', () => {
+      a1.play();
+      a2.play();
+      start.classList.remove('show');
+    }, { once: true });
+  </script>
+</body>
+</html>
