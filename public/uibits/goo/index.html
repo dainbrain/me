@@ -1976,7 +1976,10 @@ async function main() {
       || colorEl.value !== lastColor || currentEffect !== lastEffect;
     lastViscosity = viscosityEl.value; lastMomentum = momentumEl.value;
     lastColor = colorEl.value; lastEffect = currentEffect;
-    const isIdle = widgetSpeed < 5 && activeDarts.length === 0 && activeCracks.length === 0
+    // Only skip frames for goo — water/smoke simulations continue animating after widgets
+    // stop moving and must render until the field fully dissipates (~3s decay).
+    const isIdle = currentEffect === 'goo'
+      && widgetSpeed < 5 && activeDarts.length === 0 && activeCracks.length === 0
       && !sliderChanged;
     if (isIdle) {
       if (++idleFrames > 4) { requestAnimationFrame(frame); return; }
