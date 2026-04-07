@@ -87,6 +87,30 @@
 
     .circle--avatar { width: 52px; height: 52px; }
 
+    /* 18×18 status emoji; top-right when hub is on the left edge, top-left when on the right edge */
+    .avatar-status {
+      position: absolute;
+      z-index: 3;
+      width: 18px;
+      height: 18px;
+      top: 0;
+      right: 0;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      font-size: 14px;
+      line-height: 1;
+      pointer-events: none;
+      font-family: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), 0 2px 5px rgba(0, 0, 0, 0.45), 0 0 1px rgba(0, 0, 0, 0.4);
+    }
+    #radial-widget.avatar-status-left .avatar-status {
+      right: auto;
+      left: 0;
+    }
+
     .circle--crosshair {
       width: 44px;
       height: 44px;
@@ -299,15 +323,19 @@
       <div class="radial-menu" id="radial-menu">
         <a class="radial-item" href="#" title="Alex">
           <div class="circle circle--avatar" data-goo><img src="https://i.pravatar.cc/120?img=11" alt="Alex"></div>
+          <span class="avatar-status" aria-label="Status" role="img">🟢</span>
         </a>
         <a class="radial-item" href="#" title="Jordan">
           <div class="circle circle--avatar" data-goo><img src="https://i.pravatar.cc/120?img=32" alt="Jordan"></div>
+          <span class="avatar-status" aria-label="Status" role="img">🌙</span>
         </a>
         <a class="radial-item" href="#" title="Sam">
           <div class="circle circle--avatar" data-goo><img src="https://i.pravatar.cc/120?img=47" alt="Sam"></div>
+          <span class="avatar-status" aria-label="Status" role="img">🔴</span>
         </a>
         <a class="radial-item" href="#" title="Casey">
           <div class="circle circle--avatar" data-goo><img src="https://i.pravatar.cc/120?img=68" alt="Casey"></div>
+          <span class="avatar-status" aria-label="Status" role="img">✈️</span>
         </a>
         <div class="circle circle--hub" id="hub-btn" data-goo role="button" tabindex="0" aria-label="Open menu" aria-expanded="true">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M9 10a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M6.168 18.849a4 4 0 0 1 3.832 -2.849h4a4 4 0 0 1 3.834 2.855" /></svg>
@@ -1196,7 +1224,16 @@ async function main() {
     };
   }
 
+  function snapIsRightEdge(snap) {
+    return snap === 'right' || snap === 'top-right' || snap === 'bottom-right';
+  }
+
+  function syncAvatarStatusAnchor() {
+    widgetEl.classList.toggle('avatar-status-left', snapIsRightEdge(teamDrag.state.snapped));
+  }
+
   function layoutSatellites() {
+    syncAvatarStatusAnchor();
     const n = satellites.length;
 
     if (menuMode === 'line') {
