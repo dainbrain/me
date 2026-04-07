@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="WebGPU shader overlay with draggable widgets and switchable effects (goo, water, smoke).">
   <title>WebGPU shader overlay</title>
+  <link rel="stylesheet" href="quest-log.css">
   <style>
     :root {
       --background-color: #0E0C0A;
@@ -1139,6 +1140,10 @@ async function main() {
     return;
   }
 
+  // Expose shared utilities before the first await so defer scripts can use them.
+  window.makeDraggable = makeDraggable;
+  window.positionContextMenu = positionContextMenu;
+
   const adapter = await navigator.gpu.requestAdapter();
   if (!adapter) {
     document.body.innerHTML = '<div class="no-webgpu">Could not get a WebGPU adapter.</div>';
@@ -2110,6 +2115,15 @@ async function main() {
     blendK: el.classList.contains('circle--avatar') ? GOO_VISCOSITY_AVATAR : GOO_VISCOSITY_HUB,
   }));
 
+  // Allow deferred scripts (e.g. quest-log.js) to register new [data-goo] elements
+  // after the initial querySelectorAll scan.
+  window.addGooWidget = (el) => {
+    gooWidgets.push({
+      el, x: 0, y: 0, vx: 0, vy: 0, w: 0, h: 0, cornerR: 0, initialized: false,
+      blendK: el.classList.contains('circle--avatar') ? GOO_VISCOSITY_AVATAR : GOO_VISCOSITY_HUB,
+    });
+  };
+
   function updateGooWidgets(dt) {
     const bodyRect = document.body.getBoundingClientRect();
     gooWidgets.forEach((gw) => {
@@ -2507,5 +2521,6 @@ async function main() {
 
 main();
   </script>
+  <script src="quest-log.js" defer></script>
 </body>
 </html>
