@@ -402,9 +402,9 @@
 // =============================================================================
 
 const MAX_WIDGETS = 16;
-// Render at half DPR — goo/water/smoke are smooth effects, visually near-identical at 0.5x.
-// Change to 1.0 to restore native Retina resolution at ~4x the GPU cost.
-const RENDER_SCALE = 0.5;
+// On HiDPI (Retina) displays render at 1x instead of 2x — 75% fewer pixels, negligible
+// quality difference on smooth shader effects. Standard 1x displays use native resolution.
+const RENDER_SCALE = window.devicePixelRatio >= 2 ? 0.5 : 1.0;
 
 // =============================================================================
 // SHARED WGSL — included by all three effect shaders (goo, water, smoke).
@@ -1868,6 +1868,10 @@ async function main() {
   //   7. Render pass 2: dart/crack overlay (if any active) — load + composite
   let lastTime = performance.now() / 1000;
   let idleFrames = 0;
+  let lastViscosity = viscosityEl.value;
+  let lastMomentum = momentumEl.value;
+  let lastColor = colorEl.value;
+  let lastEffect = currentEffect;
 
   function frame() {
     const now = performance.now() / 1000;
@@ -1888,7 +1892,12 @@ async function main() {
     const widgetSpeed = visible.reduce((s, gw) => s + Math.abs(gw.vx) + Math.abs(gw.vy), 0);
     // Threshold of 5 filters out getBoundingClientRect float jitter (~0.1–2 px/s)
     // while still catching real drag motion (10+ px/s).
-    const isIdle = widgetSpeed < 5 && activeDarts.length === 0 && activeCracks.length === 0;
+    const sliderChanged = viscosityEl.value !== lastViscosity || momentumEl.value !== lastMomentum
+      || colorEl.value !== lastColor || currentEffect !== lastEffect;
+    lastViscosity = viscosityEl.value; lastMomentum = momentumEl.value;
+    lastColor = colorEl.value; lastEffect = currentEffect;
+    const isIdle = widgetSpeed < 5 && activeDarts.length === 0 && activeCracks.length === 0
+      && !sliderChanged;
     if (isIdle) {
       if (++idleFrames > 4) { requestAnimationFrame(frame); return; }
     } else {
