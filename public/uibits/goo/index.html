@@ -89,6 +89,8 @@
     .circle--hub .icon { width: 75%; height: 75%; }
 
     .circle--avatar {
+      position: relative;
+      z-index: 4;
       width: 52px;
       height: 52px;
       transition: border-color 180ms ease, opacity 180ms ease;
@@ -121,7 +123,7 @@
     /* 18×18 status emoji; top-right when hub is on the left edge, top-left when on the right edge */
     .avatar-status {
       position: absolute;
-      z-index: 3;
+      z-index: 7;
       width: 18px;
       height: 18px;
       top: 0;
@@ -142,6 +144,219 @@
       left: 0;
     }
 
+    /* Slack-style card behind avatar (opens on click); screen share docks top-right when open.
+       Collapsed: 0×0 (no border/shadow/blur) so nothing shows under translucent avatars. Open: slides
+       to below + right of avatar (mirrored on right edge) — ~280px wide. */
+    .avatar-info-card {
+      position: absolute;
+      z-index: 1;
+      left: 50%;
+      top: 50%;
+      right: auto;
+      transform: translate(-50%, -50%);
+      width: 0;
+      max-width: 0;
+      height: 0;
+      max-height: 0;
+      padding: 0;
+      box-sizing: border-box;
+      pointer-events: none;
+      overflow: hidden;
+      border-radius: 0;
+      background: transparent;
+      border: none;
+      backdrop-filter: none;
+      transform-origin: center center;
+      transition: transform 0.26s ease, max-width 0.26s ease, max-height 0.26s ease, padding 0.26s ease,
+        border-radius 0.26s ease, box-shadow 0.26s ease, top 0.26s ease, left 0.26s ease, right 0.26s ease,
+        border-color 0.26s ease, background 0.26s ease, backdrop-filter 0.26s ease;
+      box-shadow: none;
+    }
+    .radial-item.avatar-info-open .avatar-info-card {
+      left: 60px;
+      top: 16px;
+      right: auto;
+      transform: none;
+      transform-origin: top left;
+      width: 280px;
+      max-width: 280px;
+      height: auto;
+      max-height: min(380px, 70vh);
+      min-height: 0;
+      pointer-events: auto;
+      overflow: hidden;
+      padding: 10px 10px 12px;
+      border-radius: 10px;
+      z-index: 2;
+      background: var(--control-bg);
+      border: 1px solid var(--control-border);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+    #radial-widget.avatar-status-left .radial-item.avatar-info-open .avatar-info-card {
+      left: auto;
+      right: 60px;
+      transform-origin: top right;
+    }
+    @keyframes slack-card-surface-in {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    .avatar-info-card__surface {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+    .radial-item.avatar-info-open .avatar-info-card__surface {
+      display: flex;
+      animation: slack-card-surface-in 0.26s ease forwards;
+    }
+    .radial-item[data-screen-sharing].avatar-info-open .avatar-info-card__surface {
+      padding-right: 8px;
+    }
+    .radial-item[data-screen-sharing].avatar-info-open.screen-preview-expanded .avatar-info-card__surface {
+      /* padding-top: calc(280px * 19 / 30 + 10px); */
+    }
+    .avatar-info-card__handle {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--highlight-color);
+      letter-spacing: 0.02em;
+    }
+    .avatar-info-card__slack {
+      font-size: 0.65rem;
+      line-height: 1.45;
+      color: rgba(230, 238, 248, 0.82);
+      margin: 0;
+      overflow-wrap: break-word;
+      max-width: 100%;
+    }
+    .avatar-info-card__compose {
+      display: flex;
+      align-items: stretch;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .avatar-info-card__input {
+      flex: 1;
+      min-width: 0;
+      font-family: inherit;
+      font-size: 0.65rem;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--control-border);
+      background: rgba(0, 0, 0, 0.25);
+      color: var(--foreground-color);
+    }
+    .avatar-info-card__input::placeholder {
+      color: rgba(200, 220, 255, 0.35);
+    }
+    .avatar-info-card__send {
+      flex-shrink: 0;
+      width: 30px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      border: 1px solid var(--control-border);
+      background: rgba(88, 194, 255, 0.12);
+      color: var(--highlight-color);
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .avatar-info-card__send:hover {
+      background: rgba(88, 194, 255, 0.22);
+      border-color: rgba(88, 194, 255, 0.45);
+    }
+    .avatar-info-card__send svg {
+      width: 17px;
+      height: 17px;
+    }
+
+    /* Screen-share preview: behind avatar (z 1) when collapsed. Expanded (Slack closed): same top/left
+       as collapsed — only width/height grow; z above avatar for hover. */
+    .avatar-screen-preview {
+      display: none;
+      position: absolute;
+      z-index: 1;
+      width: 96px;
+      height: calc(96px * 19 / 30);
+      top: 0px;
+      left: 60px;
+      right: auto;
+      bottom: auto;
+      box-sizing: border-box;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.38);
+      background: url('desktop-mockup.jpg') center / cover no-repeat;
+      box-shadow: 0 2px 7px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.25);
+      transition: width 0.28s ease, height 0.28s ease, box-shadow 0.28s ease, border-radius 0.28s ease,
+        top 0.28s ease, left 0.28s ease, right 0.28s ease, transform 0.28s ease;
+      cursor: default;
+    }
+    .radial-item[data-screen-sharing] .avatar-screen-preview {
+      display: block;
+      pointer-events: auto;
+    }
+    #radial-widget.avatar-status-left .radial-item[data-screen-sharing]:not(.avatar-info-open):not(.screen-preview-expanded) .avatar-screen-preview {
+      left: auto;
+      right: 60px;
+      top: 0;
+    }
+    /* Slack open (not expanded): tuck top-right of Slack card (match collapsed mini width). */
+    .radial-item[data-screen-sharing].avatar-info-open:not(.screen-preview-expanded) .avatar-screen-preview {
+      top: 0;
+      left: 60px;
+      right: auto;
+    }
+    #radial-widget.avatar-status-left .radial-item[data-screen-sharing].avatar-info-open:not(.screen-preview-expanded) .avatar-screen-preview {
+      left: auto;
+      right: 60px;
+      top: 0;
+    }
+    /* Expanded, Slack closed: keep collapsed top/left/right; only grow size. */
+    .radial-item[data-screen-sharing].screen-preview-expanded:not(.avatar-info-open) .avatar-screen-preview {
+      z-index: 8;
+      transform: none;
+      width: 280px;
+      height: calc(280px * 19 / 30);
+      border-radius: 5px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.35);
+    }
+    /* Mirror hub: collapsed position is in a :not(.screen-preview-expanded) rule — repeat here so expand keeps it. */
+    #radial-widget.avatar-status-left .radial-item[data-screen-sharing].screen-preview-expanded:not(.avatar-info-open) .avatar-screen-preview {
+      left: auto;
+      right: 60px;
+      top: 0;
+    }
+    /* Expanded + Slack open: same top/left as your Slack-open mini; only size grows. */
+    .radial-item[data-screen-sharing].avatar-info-open.screen-preview-expanded .avatar-screen-preview {
+      z-index: 8;
+      top: 0;
+      left: 55px;
+      right: auto;
+      transform: none;
+      width: 280px;
+      height: calc(280px * 19 / 30);
+      border-radius: 5px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.35);
+    }
+    #radial-widget.avatar-status-left .radial-item[data-screen-sharing].avatar-info-open.screen-preview-expanded .avatar-screen-preview {
+      left: auto;
+      right: 55px;
+      top: 0;
+    }
+    .radial-item.screen-preview-expanded {
+      z-index: 12;
+      overflow: visible;
+    }
+
     .circle--crosshair {
       width: 44px;
       height: 44px;
@@ -160,6 +375,11 @@
 
     .radial-menu {
       position: relative;
+      overflow: visible;
+    }
+
+    #radial-widget {
+      overflow: visible;
     }
 
     .radial-item {
@@ -196,6 +416,11 @@
     @media (prefers-reduced-motion: reduce) {
       .radial-item { transition: none; }
       .widget.snapped { transition: none; }
+      .avatar-info-card { transition: none; }
+      .radial-item.avatar-info-open .avatar-info-card__surface {
+        animation: none;
+        opacity: 1;
+      }
     }
 
     .controls-panel {
@@ -353,18 +578,67 @@
     <div class="widget" id="radial-widget">
       <div class="radial-menu" id="radial-menu">
         <a class="radial-item" href="#" title="Alex">
+          <div class="avatar-info-card">
+            <div class="avatar-info-card__surface">
+              <p class="avatar-info-card__handle">@alex</p>
+              <p class="avatar-info-card__slack">Last Slack: Can you review the PR by EOD?</p>
+              <div class="avatar-info-card__compose">
+                <input type="text" class="avatar-info-card__input" placeholder="Message…" autocomplete="off" />
+                <button type="button" class="avatar-info-card__send" aria-label="Send">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 14l11 -11" /><path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" /></svg>
+                </button>
+              </div>
+            </div>
+          </div>
           <div class="circle circle--avatar" data-goo data-presence="available"><img src="https://i.pravatar.cc/120?img=11" alt="Alex"></div>
           <span class="avatar-status" aria-label="Status" role="img">💬</span>
         </a>
-        <a class="radial-item" href="#" title="Jordan">
+        <a class="radial-item" href="#" title="Jordan" data-screen-sharing>
+          <div class="avatar-info-card">
+            <div class="avatar-info-card__surface">
+              <p class="avatar-info-card__handle">@jordan</p>
+              <p class="avatar-info-card__slack">Last Slack: Pushed the goo shader — ping me if you want a walkthrough</p>
+              <div class="avatar-info-card__compose">
+                <input type="text" class="avatar-info-card__input" placeholder="Message…" autocomplete="off" />
+                <button type="button" class="avatar-info-card__send" aria-label="Send">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 14l11 -11" /><path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" /></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="avatar-screen-preview" role="img" aria-label="Screen share preview"></div>
           <div class="circle circle--avatar" data-goo data-presence="available"><img src="https://i.pravatar.cc/120?img=32" alt="Jordan"></div>
           <span class="avatar-status" aria-label="Status" role="img">✋</span>
         </a>
         <a class="radial-item" href="#" title="Sam">
+          <div class="avatar-info-card">
+            <div class="avatar-info-card__surface">
+              <p class="avatar-info-card__handle">@sam</p>
+              <p class="avatar-info-card__slack">Last Slack: OOO tomorrow — catch you Thursday</p>
+              <div class="avatar-info-card__compose">
+                <input type="text" class="avatar-info-card__input" placeholder="Message…" autocomplete="off" />
+                <button type="button" class="avatar-info-card__send" aria-label="Send">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 14l11 -11" /><path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" /></svg>
+                </button>
+              </div>
+            </div>
+          </div>
           <div class="circle circle--avatar" data-goo data-presence="busy"><img src="https://i.pravatar.cc/120?img=47" alt="Sam"></div>
           <span class="avatar-status" aria-label="Status" role="img">📆</span>
         </a>
         <a class="radial-item" href="#" title="Casey">
+          <div class="avatar-info-card">
+            <div class="avatar-info-card__surface">
+              <p class="avatar-info-card__handle">@casey</p>
+              <p class="avatar-info-card__slack">Last Slack: Flight lands 6pm — will miss standup</p>
+              <div class="avatar-info-card__compose">
+                <input type="text" class="avatar-info-card__input" placeholder="Message…" autocomplete="off" />
+                <button type="button" class="avatar-info-card__send" aria-label="Send">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 14l11 -11" /><path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" /></svg>
+                </button>
+              </div>
+            </div>
+          </div>
           <div class="circle circle--avatar" data-goo data-presence="offline"><img src="https://i.pravatar.cc/120?img=68" alt="Casey"></div>
           <span class="avatar-status" aria-label="Status" role="img">✈️</span>
         </a>
@@ -1167,6 +1441,14 @@ async function main() {
   let menuMode = 'line';
 
   const satellites = radialItems.map((el) => ({ el, angle: 0 }));
+  const SCREEN_SHARE_IDX = radialItems.findIndex((el) => el.hasAttribute('data-screen-sharing'));
+  let screenPreviewExpanded = false;
+  /** Index into radialItems / satellites; -1 = none. */
+  let avatarInfoOpenIdx = -1;
+
+  function lineExtraForIndex(_i) {
+    return 0;
+  }
 
   function computeAngles() {
     const n = satellites.length;
@@ -1242,7 +1524,7 @@ async function main() {
     let minY = -HUB_HALF;
     let maxY = HUB_HALF;
     for (let i = 0; i < n; i++) {
-      const dist = HUB_LINE_GAP + i * LINE_SPACING;
+      const dist = HUB_LINE_GAP + i * LINE_SPACING + lineExtraForIndex(i);
       const px = dir.dx * dist + ox;
       const py = dir.dy * dist + oy;
       minX = Math.min(minX, px - AVATAR_RADIUS);
@@ -1282,7 +1564,7 @@ async function main() {
       const dir = getLineDirection(teamDrag.state.x, teamDrag.state.y, bw, bh, snap);
       const { ox, oy } = getLineOutwardOffset(snap);
       satellites.forEach((sat, i) => {
-        const dist = HUB_LINE_GAP + i * LINE_SPACING;
+        const dist = HUB_LINE_GAP + i * LINE_SPACING + lineExtraForIndex(i);
         const tx = dir.dx * dist + ox;
         const ty = dir.dy * dist + oy;
         sat.el.style.transform = menuOpen
@@ -1290,9 +1572,10 @@ async function main() {
           : 'translate(0, 0) scale(0)';
       });
     } else {
-      satellites.forEach((sat) => {
-        const tx = Math.cos(sat.angle) * SPREAD_RADIUS;
-        const ty = Math.sin(sat.angle) * SPREAD_RADIUS;
+      satellites.forEach((sat, i) => {
+        const r = SPREAD_RADIUS + lineExtraForIndex(i);
+        const tx = Math.cos(sat.angle) * r;
+        const ty = Math.sin(sat.angle) * r;
         sat.el.style.transform = menuOpen
           ? `translate(${tx}px, ${ty}px) scale(1)`
           : 'translate(0, 0) scale(0)';
@@ -1309,6 +1592,41 @@ async function main() {
   let hoverAnchorX = 0;
   let hoverAnchorY = 0;
   let suppressHoverIntentUntil = 0;
+
+  let screenShareHoverTimer = null;
+  let screenShareHoverAnchorX = 0;
+  let screenShareHoverAnchorY = 0;
+  let suppressScreenShareHoverUntil = 0;
+
+  function clearScreenShareHoverTimer() {
+    if (screenShareHoverTimer != null) {
+      clearTimeout(screenShareHoverTimer);
+      screenShareHoverTimer = null;
+    }
+  }
+
+  function setScreenPreviewExpanded(expanded) {
+    if (expanded === screenPreviewExpanded) return;
+    screenPreviewExpanded = expanded;
+    const item = SCREEN_SHARE_IDX >= 0 ? radialItems[SCREEN_SHARE_IDX] : null;
+    if (item) item.classList.toggle('screen-preview-expanded', expanded);
+    layoutSatellites();
+  }
+
+  function scheduleScreenShareExpand() {
+    clearScreenShareHoverTimer();
+    screenShareHoverTimer = setTimeout(() => {
+      screenShareHoverTimer = null;
+      if (performance.now() < suppressScreenShareHoverUntil) return;
+      setScreenPreviewExpanded(true);
+    }, HOVER_INTENT_MS);
+  }
+
+  function closeAvatarInfo() {
+    avatarInfoOpenIdx = -1;
+    radialItems.forEach((el) => el.classList.remove('avatar-info-open'));
+    layoutSatellites();
+  }
 
   function clearHoverIntentTimer() {
     if (hoverIntentTimer != null) {
@@ -1335,6 +1653,9 @@ async function main() {
     if (menuOpen && !open) {
       clearHoverIntentTimer();
       suppressHoverIntentUntil = performance.now() + HOVER_SUPPRESS_AFTER_CLOSE_MS;
+      clearScreenShareHoverTimer();
+      setScreenPreviewExpanded(false);
+      closeAvatarInfo();
     }
     menuOpen = open;
     radialMenu.classList.toggle('open', menuOpen);
@@ -1365,11 +1686,39 @@ async function main() {
     clearHoverIntentTimer();
   });
 
+  if (SCREEN_SHARE_IDX >= 0) {
+    const screenSharePreviewEl = radialItems[SCREEN_SHARE_IDX].querySelector('.avatar-screen-preview');
+    if (screenSharePreviewEl) {
+      screenSharePreviewEl.addEventListener('pointerenter', (e) => {
+        if (!menuOpen) return;
+        screenShareHoverAnchorX = e.clientX;
+        screenShareHoverAnchorY = e.clientY;
+        scheduleScreenShareExpand();
+      });
+      screenSharePreviewEl.addEventListener('pointermove', (e) => {
+        if (!menuOpen) return;
+        const d = Math.hypot(e.clientX - screenShareHoverAnchorX, e.clientY - screenShareHoverAnchorY);
+        if (d > HOVER_MOVE_MAX_PX) {
+          screenShareHoverAnchorX = e.clientX;
+          screenShareHoverAnchorY = e.clientY;
+          scheduleScreenShareExpand();
+        }
+      });
+      screenSharePreviewEl.addEventListener('pointerleave', () => {
+        clearScreenShareHoverTimer();
+        setScreenPreviewExpanded(false);
+      });
+    }
+  }
+
   const teamDrag = makeDraggable(widgetEl, hubBtn, {
     onClick: toggleMenu,
     afterDrag() {
       clearHoverIntentTimer();
+      clearScreenShareHoverTimer();
+      closeAvatarInfo();
       suppressHoverIntentUntil = performance.now() + HOVER_SUPPRESS_AFTER_DRAG_MS;
+      suppressScreenShareHoverUntil = performance.now() + HOVER_SUPPRESS_AFTER_DRAG_MS;
     },
     clamp(snap, cx, cy) {
       if (menuMode === 'line') {
@@ -1520,10 +1869,40 @@ async function main() {
 
   radialItems.forEach((item) => item.addEventListener('click', (e) => e.preventDefault()));
 
+  radialItems.forEach((item, idx) => {
+    const face = item.querySelector('.circle--avatar');
+    if (!face) return;
+    face.addEventListener('click', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const wasOpen = item.classList.contains('avatar-info-open');
+      radialItems.forEach((el) => el.classList.remove('avatar-info-open'));
+      if (!wasOpen) {
+        item.classList.add('avatar-info-open');
+        avatarInfoOpenIdx = idx;
+      } else {
+        avatarInfoOpenIdx = -1;
+      }
+      layoutSatellites();
+    });
+    const card = item.querySelector('.avatar-info-card');
+    if (card) {
+      card.querySelectorAll('.avatar-info-card__input, .avatar-info-card__send, .avatar-info-card__compose').forEach((el) => {
+        el.addEventListener('click', (ev) => ev.stopPropagation());
+      });
+    }
+  });
+
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if (!hubCtxMenu.hidden || !avatarCtxMenu.hidden) {
         closeTeamContextMenus();
+        e.preventDefault();
+        return;
+      }
+      if (avatarInfoOpenIdx >= 0) {
+        closeAvatarInfo();
         e.preventDefault();
         return;
       }
