@@ -1946,6 +1946,16 @@ async function main() {
   //   5. Update dart physics and write dart/crack data to GPU
   //   6. Render pass 1: active effect (goo/water/smoke) — clear canvas
   //   7. Render pass 2: dart/crack overlay (if any active) — load + composite
+  // Sample ~256 evenly-spaced cells to detect remaining sim energy without
+  // scanning the full array every frame. Short-circuits early when energy is present.
+  function simHasEnergy(arr, threshold = 0.001) {
+    const step = Math.max(1, arr.length >> 8); // arr.length / 256
+    for (let i = 0; i < arr.length; i += step) {
+      if (Math.abs(arr[i]) > threshold) return true;
+    }
+    return false;
+  }
+
   let lastTime = performance.now() / 1000;
   let idleFrames = 0;
   let lastViscosity = viscosityEl.value;
@@ -1976,9 +1986,12 @@ async function main() {
       || colorEl.value !== lastColor || currentEffect !== lastEffect;
     lastViscosity = viscosityEl.value; lastMomentum = momentumEl.value;
     lastColor = colorEl.value; lastEffect = currentEffect;
-    // Only skip frames for goo — water/smoke simulations continue animating after widgets
-    // stop moving and must render until the field fully dissipates (~3s decay).
-    const isIdle = currentEffect === 'goo'
+    // Idle when nothing is visually changing. For water/smoke, also require the sim
+    // field to have fully dissipated before skipping — they decay for ~3s after motion stops.
+    const simQuiet = currentEffect === 'water' ? !simHasEnergy(waveA)
+                   : currentEffect === 'smoke'  ? !simHasEnergy(sDens)
+                   : true;
+    const isIdle = simQuiet
       && widgetSpeed < 5 && activeDarts.length === 0 && activeCracks.length === 0
       && !sliderChanged;
     if (isIdle) {
