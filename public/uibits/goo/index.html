@@ -465,6 +465,11 @@ const MAX_WIDGETS = 16;
 // quality difference on smooth shader effects. Standard 1x displays use native resolution.
 const RENDER_SCALE = window.devicePixelRatio >= 2 ? 0.5 : 1.0;
 
+// Viscosity scale factors for goo edge-blending per widget type.
+// 1.0 = full viscosity slider effect, 0.0 = no edge attraction.
+const GOO_VISCOSITY_HUB    = 1.0;
+const GOO_VISCOSITY_AVATAR = 0.50;
+
 // =============================================================================
 // SHARED WGSL — included by all three effect shaders (goo, water, smoke).
 // Defines the Globals uniform struct, Widget storage struct, full-screen quad
@@ -491,7 +496,7 @@ struct Widget {
   vel: vec2f,            // smoothed velocity in body px/s (not DPR-scaled)
   size: vec2f,           // width, height in canvas pixels
   radius: f32,           // CSS border-radius in canvas pixels (for SDF)
-  _pad: f32,
+  blend_k: f32,          // scale factor on k for edge-blending (1.0 = full viscosity, <1 = reduced)
 };
 
 @group(0) @binding(0) var<uniform> globals: Globals;
@@ -540,11 +545,15 @@ fn smin(a: f32, b: f32, k: f32) -> f32 {
   let k = 12.0 + globals.viscosity * 60.0;
 
   let edge_margin = 5.0;
-  var d: f32 = min(
+  let edge_d: f32 = min(
     min(px.x + edge_margin, globals.resolution.x - px.x + edge_margin),
     min(px.y + edge_margin, globals.resolution.y - px.y + edge_margin)
   );
 
+  // Each widget blends independently with screen edges via smin(edge_d, wd, k * blend_k).
+  // Hard min between widgets — they never reach toward each other.
+  // blend_k scales viscosity per-widget: hub=1.0 (full), avatars=0.25 (subtle).
+  var d: f32 = edge_d;
   for (var i = 0; i < ${MAX_WIDGETS}; i++) {
     if (i >= n) { break; }
     let w = widgets[i];
@@ -565,7 +574,7 @@ fn smin(a: f32, b: f32, k: f32) -> f32 {
       wd = sdf_shape(delta, half, w.radius);
     }
 
-    d = smin(d, wd, k);
+    d = min(d, smin(edge_d, wd, k * w.blend_k));
   }
 
   let aa = 0.5;
@@ -1720,6 +1729,9 @@ async function main() {
     w: 0, h: 0,
     cornerR: 0,
     initialized: false,
+    // Scale factor applied to k for this widget's edge-blending.
+    // Avatars use a fraction of viscosity so they softly reach edges; hub/nerf use full k.
+    blendK: el.classList.contains('circle--avatar') ? GOO_VISCOSITY_AVATAR : GOO_VISCOSITY_HUB,
   }));
 
   function updateGooWidgets(dt) {
@@ -2011,7 +2023,7 @@ async function main() {
       wv.setFloat32(off + 16, gw.w * dpr, true);
       wv.setFloat32(off + 20, gw.h * dpr, true);
       wv.setFloat32(off + 24, gw.cornerR * dpr, true);
-      wv.setFloat32(off + 28, 0, true);
+      wv.setFloat32(off + 28, gw.blendK, true);
     });
     device.queue.writeBuffer(widgetsBuffer, 0, widgetsData);
 
