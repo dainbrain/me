@@ -12,6 +12,9 @@
       --highlight-color: #58C2FF;
       --control-bg: rgba(14, 12, 10, 0.82);
       --control-border: rgba(88, 194, 255, 0.18);
+      --presence-available: #22c55e;
+      --presence-busy: #dc2626;
+      --presence-offline: #737373;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -85,7 +88,35 @@
     .circle--hub:hover { transform: scale(1.08); }
     .circle--hub .icon { width: 75%; height: 75%; }
 
-    .circle--avatar { width: 52px; height: 52px; }
+    .circle--avatar {
+      width: 52px;
+      height: 52px;
+      transition: border-color 180ms ease, opacity 180ms ease;
+    }
+    .circle--avatar img {
+      transition: filter 180ms ease;
+    }
+    .circle--avatar[data-presence="available"] {
+      border-color: var(--presence-available);
+      opacity: 1;
+    }
+    .circle--avatar[data-presence="available"] img {
+      filter: saturate(1);
+    }
+    .circle--avatar[data-presence="busy"] {
+      border-color: var(--presence-busy);
+      opacity: 0.75;
+    }
+    .circle--avatar[data-presence="busy"] img {
+      filter: saturate(0.68);
+    }
+    .circle--avatar[data-presence="offline"] {
+      border-color: var(--presence-offline);
+      opacity: 0.75;
+    }
+    .circle--avatar[data-presence="offline"] img {
+      filter: saturate(0.35) grayscale(0.5);
+    }
 
     /* 18×18 status emoji; top-right when hub is on the left edge, top-left when on the right edge */
     .avatar-status {
@@ -322,19 +353,19 @@
     <div class="widget" id="radial-widget">
       <div class="radial-menu" id="radial-menu">
         <a class="radial-item" href="#" title="Alex">
-          <div class="circle circle--avatar" data-goo><img src="https://i.pravatar.cc/120?img=11" alt="Alex"></div>
-          <span class="avatar-status" aria-label="Status" role="img">🟢</span>
+          <div class="circle circle--avatar" data-goo data-presence="available"><img src="https://i.pravatar.cc/120?img=11" alt="Alex"></div>
+          <span class="avatar-status" aria-label="Status" role="img">💬</span>
         </a>
         <a class="radial-item" href="#" title="Jordan">
-          <div class="circle circle--avatar" data-goo><img src="https://i.pravatar.cc/120?img=32" alt="Jordan"></div>
-          <span class="avatar-status" aria-label="Status" role="img">🌙</span>
+          <div class="circle circle--avatar" data-goo data-presence="available"><img src="https://i.pravatar.cc/120?img=32" alt="Jordan"></div>
+          <span class="avatar-status" aria-label="Status" role="img">✋</span>
         </a>
         <a class="radial-item" href="#" title="Sam">
-          <div class="circle circle--avatar" data-goo><img src="https://i.pravatar.cc/120?img=47" alt="Sam"></div>
-          <span class="avatar-status" aria-label="Status" role="img">🔴</span>
+          <div class="circle circle--avatar" data-goo data-presence="busy"><img src="https://i.pravatar.cc/120?img=47" alt="Sam"></div>
+          <span class="avatar-status" aria-label="Status" role="img">📆</span>
         </a>
         <a class="radial-item" href="#" title="Casey">
-          <div class="circle circle--avatar" data-goo><img src="https://i.pravatar.cc/120?img=68" alt="Casey"></div>
+          <div class="circle circle--avatar" data-goo data-presence="offline"><img src="https://i.pravatar.cc/120?img=68" alt="Casey"></div>
           <span class="avatar-status" aria-label="Status" role="img">✈️</span>
         </a>
         <div class="circle circle--hub" id="hub-btn" data-goo role="button" tabindex="0" aria-label="Open menu" aria-expanded="true">
