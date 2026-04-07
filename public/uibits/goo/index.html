@@ -190,11 +190,26 @@
       padding: 8px 12px;
       backdrop-filter: blur(10px);
     }
-    .slider-group label {
+    .slider-group-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      width: 100%;
+      min-width: 112px;
+    }
+    .slider-group-label-row .slider-name {
       font-size: 0.52rem;
       letter-spacing: 0.12em;
       text-transform: uppercase;
       color: rgba(200, 228, 255, 0.5);
+    }
+    .slider-group-label-row .slider-value {
+      font-size: 0.65rem;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+      color: var(--highlight-color);
+      font-weight: 500;
     }
     .slider-group input[type="range"] {
       width: 80px;
@@ -229,7 +244,7 @@
   <!-- Widget layer: HTML/CSS widgets sit above the shader (z-index 2).
        Any element with [data-goo] is tracked by the shader for reactive effects. -->
   <div class="widget-layer" id="widget-layer">
-    <div class="widget" id="radial-widget" style="left:200px;top:300px">
+    <div class="widget" id="radial-widget">
       <div class="radial-menu" id="radial-menu">
         <a class="radial-item" href="#" title="Alex">
           <div class="circle circle--avatar" data-goo><img src="https://i.pravatar.cc/120?img=11" alt="Alex"></div>
@@ -243,7 +258,7 @@
         <a class="radial-item" href="#" title="Casey">
           <div class="circle circle--avatar" data-goo><img src="https://i.pravatar.cc/120?img=68" alt="Casey"></div>
         </a>
-        <div class="circle circle--hub" id="hub-btn" data-goo role="button" tabindex="0" aria-label="Open menu" aria-expanded="false">
+        <div class="circle circle--hub" id="hub-btn" data-goo role="button" tabindex="0" aria-label="Open menu" aria-expanded="true">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M9 10a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M6.168 18.849a4 4 0 0 1 3.832 -2.849h4a4 4 0 0 1 3.834 2.855" /></svg>
         </div>
       </div>
@@ -256,25 +271,31 @@
     </div>
   </div>
 
-  <!-- Controls: effect switcher + parameter sliders. Positioned fixed at bottom center. -->
+  <!-- Controls: defaults match JS (currentEffect, menuMode, slider-driven shader params). -->
   <div class="controls-panel" id="controls">
     <button id="btn-goo" aria-pressed="true">Goo</button>
     <button id="btn-water" aria-pressed="false">Water</button>
     <button id="btn-smoke" aria-pressed="false">Smoke</button>
+    <button id="btn-menu-mode" type="button" aria-pressed="true" aria-label="Toggle radial vs line menu layout">Radial</button>
     <div class="slider-group">
-      <label for="viscosity">Viscosity</label>
-      <input type="range" id="viscosity" min="0" max="100" value="40">
+      <label class="slider-group-label-row" for="viscosity">
+        <span class="slider-name">Viscosity</span>
+        <span class="slider-value" id="viscosity-val">20</span>
+      </label>
+      <input type="range" id="viscosity" min="0" max="100" value="20">
     </div>
     <div class="slider-group">
-      <label for="momentum">Momentum</label>
+      <label class="slider-group-label-row" for="momentum">
+        <span class="slider-name">Momentum</span>
+        <span class="slider-value" id="momentum-val">50</span>
+      </label>
       <input type="range" id="momentum" min="0" max="100" value="50">
     </div>
     <div class="slider-group">
-      <label for="wobble">Wobble</label>
-      <input type="range" id="wobble" min="0" max="100" value="30">
-    </div>
-    <div class="slider-group">
-      <label for="effect-color">Color</label>
+      <label class="slider-group-label-row" for="effect-color">
+        <span class="slider-name">Color</span>
+        <span class="slider-value" id="effect-color-val">#58C2FF</span>
+      </label>
       <input type="color" id="effect-color" value="#58C2FF">
     </div>
   </div>
@@ -333,8 +354,7 @@ struct Globals {
   viscosity: f32,        // slider 0..1 — controls damping / field persistence
   momentum: f32,         // slider 0..1 — controls velocity reactivity
   widget_count: f32,     // number of active widgets this frame
-  wobble: f32,           // slider 0..1 — ambient displacement (goo wobble)
-  sim_size: vec2f,       // water/smoke sim grid dimensions (in sim pixels)
+  sim_size: vec2f,       // water/smoke sim grid dimensions (in sim pixels); follows implicit padding to align vec2
   _pad0: f32,
   _pad1: f32,
 };
@@ -379,7 +399,6 @@ fn sdf_shape(delta: vec2f, half: vec2f, r: f32) -> f32 {
 // Renders a solid-color metaball-style liquid that merges widgets together.
 // Uses smin (smooth minimum) to blend SDF fields from all widgets + screen edges.
 // Velocity-based distortion stretches the goo into teardrop shapes during movement.
-// The wobble uniform adds ambient sine displacement for organic feel.
 // =============================================================================
 const GOO_WGSL = SHARED_WGSL + `
 // Smooth minimum blends two SDF values with a smooth transition zone of width k.
@@ -391,25 +410,19 @@ fn smin(a: f32, b: f32, k: f32) -> f32 {
 @fragment fn fs(v: VSOut) -> @location(0) vec4f {
   let px = v.uv * globals.resolution;
   let n = i32(globals.widget_count);
-  let t = globals.time;
 
   let k = 12.0 + globals.viscosity * 60.0;
-  let wa = globals.wobble * 3.0;
-  let sp = px + vec2f(
-    sin(px.y * 0.02 + t * 1.6) * wa + sin(px.y * 0.052 + t * 3.1) * wa * 0.3,
-    sin(px.x * 0.017 + t * 1.3) * wa + sin(px.x * 0.046 + t * 2.7) * wa * 0.3
-  );
 
   let edge_margin = 5.0;
   var d: f32 = min(
-    min(sp.x + edge_margin, globals.resolution.x - sp.x + edge_margin),
-    min(sp.y + edge_margin, globals.resolution.y - sp.y + edge_margin)
+    min(px.x + edge_margin, globals.resolution.x - px.x + edge_margin),
+    min(px.y + edge_margin, globals.resolution.y - px.y + edge_margin)
   );
 
   for (var i = 0; i < ${MAX_WIDGETS}; i++) {
     if (i >= n) { break; }
     let w = widgets[i];
-    let delta = sp - w.pos;
+    let delta = px - w.pos;
     let speed = length(w.vel);
     let mom = globals.momentum;
     let half = w.size * 0.5;
@@ -897,7 +910,7 @@ async function main() {
 
   // Makes a widget draggable by its handle element. Returns { state, position, reposition }.
   // Callbacks: onClick() — fired on click (no drag); clamp(snap, cx, cy) — constrain position
-  // during snap; onMove() — called every pointermove for layout updates.
+  // during snap; onMove() — pointermove while dragging; afterDrag() — pointerup after a real drag.
   function makeDraggable(el, handle, cbs) {
     cbs = cbs || {};
     const st = { x: 0, y: 0, snapped: null, dragging: false };
@@ -953,8 +966,19 @@ async function main() {
 
     handle.addEventListener('pointerup', () => {
       st.dragging = false;
-      if (!didDrag) { if (cbs.onClick) cbs.onClick(); return; }
+      if (!didDrag) {
+        // pointerdown cleared st.snapped for transitions; re-detect snap from the last
+        // known hub center so click-only toggles (e.g. menu open) still know edge mode.
+        let snap = detectSnap(st.x, st.y);
+        let cx = st.x, cy = st.y;
+        if (snap && cbs.clamp) ({ cx, cy } = cbs.clamp(snap, cx, cy));
+        position(snap, cx, cy);
+        el.classList.toggle('snapped', !!snap);
+        if (cbs.onClick) cbs.onClick();
+        return;
+      }
       el.classList.toggle('snapped', !!st.snapped);
+      if (cbs.afterDrag) cbs.afterDrag();
     });
 
     handle.addEventListener('pointercancel', () => { st.dragging = false; });
@@ -982,17 +1006,30 @@ async function main() {
   }
 
   // --- Team Menu ---
-  // A radial avatar menu: one hub button (icon) that toggles open/closed. When
-  // open, avatar satellites fan out at angles determined by the snap state. The
-  // entire radial-widget is one draggable unit. Avatar spread angles narrow when
-  // snapped to edges/corners to keep satellites on-screen.
+  // One hub button toggles open/closed. Radial mode: satellites fan out in an arc
+  // (angles depend on snap). Line mode: hub at one end of a horizontal or vertical
+  // row. When snapped to top/bottom (incl. corners), line is horizontal toward center;
+  // when snapped to left/right edges only, line is vertical toward center; when
+  // floating, axis follows the stronger component toward screen center. Spacing:
+  // HUB_LINE_GAP, LINE_SPACING. When snapped, LINE_EDGE_OUTSET shifts avatars (not the hub)
+  // inward from the edge. Clamp keeps the full footprint inside the body.
   const widgetEl = document.getElementById('radial-widget');
   const radialMenu = document.getElementById('radial-menu');
   const hubBtn = document.getElementById('hub-btn');
   const radialItems = [...radialMenu.querySelectorAll('.radial-item')];
   const SPREAD_RADIUS = 96;
   const AVATAR_RADIUS = 32;
+  const HUB_HALF = 22;
+  // First avatar center distance from hub center; larger = line starts farther out
+  const HUB_LINE_GAP = 62;
+  const LINE_SPACING = 72;
+  // When snapped, shift avatar centers this many px away from the screen edge (into the body)
+  const LINE_EDGE_OUTSET = 22;
+  const TEAM_DEFAULT_SNAP = 'left';
+  const TEAM_DEFAULT_HUB_CY = 100;
   let menuOpen = false;
+  // 'radial' = arc fan-out; 'line' = hub at one end; H/V from snap (top/bottom vs left/right) or center pull when free
+  let menuMode = 'line';
 
   const satellites = radialItems.map((el) => ({ el, angle: 0 }));
 
@@ -1017,36 +1054,211 @@ async function main() {
     });
   }
 
-  function layoutSatellites() {
-    satellites.forEach((sat) => {
-      const tx = Math.cos(sat.angle) * SPREAD_RADIUS;
-      const ty = Math.sin(sat.angle) * SPREAD_RADIUS;
-      sat.el.style.transform = menuOpen
-        ? `translate(${tx}px, ${ty}px) scale(1)`
-        : 'translate(0, 0) scale(0)';
-    });
+  // Horizontal or vertical only. When snapped: top/bottom (incl. corners top-*, bottom-*)
+  // → horizontal line, direction ±X toward screen center; left/right edges → vertical,
+  // direction ±Y toward center. When not snapped: same as before (stronger axis toward center).
+  function getLineDirection(hx, hy, bw, bh, snap) {
+    const cx0 = bw * 0.5;
+    const cy0 = bh * 0.5;
+    const vx = cx0 - hx;
+    const vy = cy0 - hy;
+
+    if (snap) {
+      if (snap === 'top' || snap === 'bottom' || snap.startsWith('top-') || snap.startsWith('bottom-')) {
+        if (Math.abs(vx) < 1e-6) return { dx: 1, dy: 0 };
+        return { dx: vx > 0 ? 1 : -1, dy: 0 };
+      }
+      if (snap === 'left' || snap === 'right') {
+        if (Math.abs(vy) < 1e-6) return { dx: 0, dy: 1 };
+        return { dx: 0, dy: vy > 0 ? 1 : -1 };
+      }
+    }
+
+    if (Math.abs(vx) >= Math.abs(vy)) {
+      if (Math.abs(vx) < 1e-6) return { dx: 1, dy: 0 };
+      return { dx: vx > 0 ? 1 : -1, dy: 0 };
+    }
+    if (Math.abs(vy) < 1e-6) return { dx: 0, dy: 1 };
+    return { dx: 0, dy: vy > 0 ? 1 : -1 };
   }
 
-  function toggleMenu() {
-    menuOpen = !menuOpen;
+  // Perpendicular shift for avatar line (hub stays on the edge). Pushes satellite
+  // centers toward the interior so the row isn’t flush with the bezel.
+  function getLineOutwardOffset(snap) {
+    if (!snap) return { ox: 0, oy: 0 };
+    const o = LINE_EDGE_OUTSET;
+    if (snap === 'left') return { ox: o, oy: 0 };
+    if (snap === 'right') return { ox: -o, oy: 0 };
+    if (snap === 'top') return { ox: 0, oy: o };
+    if (snap === 'bottom') return { ox: 0, oy: -o };
+    if (snap === 'top-left') return { ox: o, oy: o };
+    if (snap === 'top-right') return { ox: -o, oy: o };
+    if (snap === 'bottom-left') return { ox: o, oy: -o };
+    if (snap === 'bottom-right') return { ox: -o, oy: -o };
+    return { ox: 0, oy: 0 };
+  }
+
+  // Axis-aligned bounds of hub + all satellite circles relative to hub center (for clamping).
+  function getLineFootprintRel(dir, snap) {
+    const { ox, oy } = getLineOutwardOffset(snap);
+    const n = satellites.length;
+    let minX = -HUB_HALF;
+    let maxX = HUB_HALF;
+    let minY = -HUB_HALF;
+    let maxY = HUB_HALF;
+    for (let i = 0; i < n; i++) {
+      const dist = HUB_LINE_GAP + i * LINE_SPACING;
+      const px = dir.dx * dist + ox;
+      const py = dir.dy * dist + oy;
+      minX = Math.min(minX, px - AVATAR_RADIUS);
+      maxX = Math.max(maxX, px + AVATAR_RADIUS);
+      minY = Math.min(minY, py - AVATAR_RADIUS);
+      maxY = Math.max(maxY, py + AVATAR_RADIUS);
+    }
+    return { minX, maxX, minY, maxY };
+  }
+
+  function clampHubForLineMode(cx, cy, snap) {
+    const { w: bw, h: bh } = getBodySize();
+    const dir = getLineDirection(cx, cy, bw, bh, snap);
+    const fp = getLineFootprintRel(dir, snap);
+    const edge = 8;
+    return {
+      cx: Math.min(Math.max(cx, edge - fp.minX), bw - edge - fp.maxX),
+      cy: Math.min(Math.max(cy, edge - fp.minY), bh - edge - fp.maxY),
+    };
+  }
+
+  function layoutSatellites() {
+    const n = satellites.length;
+
+    if (menuMode === 'line') {
+      const { w: bw, h: bh } = getBodySize();
+      const snap = teamDrag.state.snapped;
+      const dir = getLineDirection(teamDrag.state.x, teamDrag.state.y, bw, bh, snap);
+      const { ox, oy } = getLineOutwardOffset(snap);
+      satellites.forEach((sat, i) => {
+        const dist = HUB_LINE_GAP + i * LINE_SPACING;
+        const tx = dir.dx * dist + ox;
+        const ty = dir.dy * dist + oy;
+        sat.el.style.transform = menuOpen
+          ? `translate(${tx}px, ${ty}px) scale(1)`
+          : 'translate(0, 0) scale(0)';
+      });
+    } else {
+      satellites.forEach((sat) => {
+        const tx = Math.cos(sat.angle) * SPREAD_RADIUS;
+        const ty = Math.sin(sat.angle) * SPREAD_RADIUS;
+        sat.el.style.transform = menuOpen
+          ? `translate(${tx}px, ${ty}px) scale(1)`
+          : 'translate(0, 0) scale(0)';
+      });
+    }
+  }
+
+  const HOVER_INTENT_MS = 250;
+  const HOVER_MOVE_MAX_PX = 8;
+  const HOVER_SUPPRESS_AFTER_DRAG_MS = 400;
+  const HOVER_SUPPRESS_AFTER_CLOSE_MS = 280;
+
+  let hoverIntentTimer = null;
+  let hoverAnchorX = 0;
+  let hoverAnchorY = 0;
+  let suppressHoverIntentUntil = 0;
+
+  function clearHoverIntentTimer() {
+    if (hoverIntentTimer != null) {
+      clearTimeout(hoverIntentTimer);
+      hoverIntentTimer = null;
+    }
+  }
+
+  function scheduleHoverIntentOpen() {
+    clearHoverIntentTimer();
+    hoverIntentTimer = setTimeout(() => {
+      hoverIntentTimer = null;
+      if (performance.now() < suppressHoverIntentUntil) return;
+      if (!menuOpen) {
+        menuOpen = true;
+        radialMenu.classList.add('open');
+        hubBtn.setAttribute('aria-expanded', 'true');
+        layoutSatellites();
+      }
+    }, HOVER_INTENT_MS);
+  }
+
+  function setMenuOpen(open) {
+    if (menuOpen && !open) {
+      clearHoverIntentTimer();
+      suppressHoverIntentUntil = performance.now() + HOVER_SUPPRESS_AFTER_CLOSE_MS;
+    }
+    menuOpen = open;
     radialMenu.classList.toggle('open', menuOpen);
     hubBtn.setAttribute('aria-expanded', menuOpen ? 'true' : 'false');
     layoutSatellites();
   }
 
+  function toggleMenu() {
+    setMenuOpen(!menuOpen);
+  }
+
+  hubBtn.addEventListener('pointerenter', (e) => {
+    hoverAnchorX = e.clientX;
+    hoverAnchorY = e.clientY;
+    scheduleHoverIntentOpen();
+  });
+
+  hubBtn.addEventListener('pointermove', (e) => {
+    const d = Math.hypot(e.clientX - hoverAnchorX, e.clientY - hoverAnchorY);
+    if (d > HOVER_MOVE_MAX_PX) {
+      hoverAnchorX = e.clientX;
+      hoverAnchorY = e.clientY;
+      scheduleHoverIntentOpen();
+    }
+  });
+
+  hubBtn.addEventListener('pointerleave', () => {
+    clearHoverIntentTimer();
+  });
+
   const teamDrag = makeDraggable(widgetEl, hubBtn, {
     onClick: toggleMenu,
+    afterDrag() {
+      clearHoverIntentTimer();
+      suppressHoverIntentUntil = performance.now() + HOVER_SUPPRESS_AFTER_DRAG_MS;
+    },
     clamp(snap, cx, cy) {
-      const { w: bw, h: bh } = getBodySize();
-      const m = SPREAD_RADIUS + AVATAR_RADIUS;
-      if (snap === 'left' || snap === 'right') cy = Math.max(m, Math.min(bh - m, cy));
-      if (snap === 'top' || snap === 'bottom') cx = Math.max(m, Math.min(bw - m, cx));
+      if (menuMode === 'line') {
+        ({ cx, cy } = clampHubForLineMode(cx, cy, snap));
+      } else {
+        const { w: bw, h: bh } = getBodySize();
+        const m = SPREAD_RADIUS + AVATAR_RADIUS;
+        if (snap === 'left' || snap === 'right') cy = Math.max(m, Math.min(bh - m, cy));
+        if (snap === 'top' || snap === 'bottom') cx = Math.max(m, Math.min(bw - m, cx));
+      }
       return { cx, cy };
     },
     onMove() { computeAngles(); layoutSatellites(); },
   });
 
+  // Default: pinned to left, hub center ~TEAM_DEFAULT_HUB_CY px from top, menu open.
+  widgetEl.removeAttribute('style');
+  let initCx = 40;
+  let initCy = TEAM_DEFAULT_HUB_CY;
+  if (menuMode === 'line') {
+    const c = clampHubForLineMode(initCx, initCy, TEAM_DEFAULT_SNAP);
+    initCx = c.cx;
+    initCy = c.cy;
+  } else {
+    const { w: bw, h: bh } = getBodySize();
+    const m = SPREAD_RADIUS + AVATAR_RADIUS;
+    initCy = Math.max(m, Math.min(bh - m, initCy));
+  }
+  teamDrag.position(TEAM_DEFAULT_SNAP, initCx, initCy);
+  widgetEl.classList.add('snapped');
+
   computeAngles();
+  setMenuOpen(true);
 
   radialItems.forEach((item) => item.addEventListener('click', (e) => e.preventDefault()));
 
@@ -1173,19 +1385,51 @@ async function main() {
   // --- Controls ---
   const viscosityEl = document.getElementById('viscosity');
   const momentumEl = document.getElementById('momentum');
-  const wobbleEl = document.getElementById('wobble');
   const colorEl = document.getElementById('effect-color');
+  const viscosityValEl = document.getElementById('viscosity-val');
+  const momentumValEl = document.getElementById('momentum-val');
+  const effectColorValEl = document.getElementById('effect-color-val');
+
+  function updateControlValueLabels() {
+    viscosityValEl.textContent = viscosityEl.value;
+    momentumValEl.textContent = momentumEl.value;
+    effectColorValEl.textContent = colorEl.value.toUpperCase();
+  }
+
+  [viscosityEl, momentumEl, colorEl].forEach((el) => el.addEventListener('input', updateControlValueLabels));
 
   document.getElementById('btn-goo').addEventListener('click', () => setEffect('goo'));
   document.getElementById('btn-water').addEventListener('click', () => setEffect('water'));
   document.getElementById('btn-smoke').addEventListener('click', () => setEffect('smoke'));
 
+  const menuModeBtn = document.getElementById('btn-menu-mode');
+  menuModeBtn.addEventListener('click', () => {
+    menuMode = menuMode === 'radial' ? 'line' : 'radial';
+    menuModeBtn.textContent = menuMode === 'radial' ? 'Line' : 'Radial';
+    menuModeBtn.setAttribute('aria-pressed', menuMode === 'line' ? 'true' : 'false');
+    if (menuMode === 'line') {
+      const c = clampHubForLineMode(teamDrag.state.x, teamDrag.state.y, teamDrag.state.snapped);
+      teamDrag.position(teamDrag.state.snapped, c.cx, c.cy);
+    }
+    computeAngles();
+    layoutSatellites();
+  });
+
   function setEffect(name) {
     currentEffect = name;
-    document.querySelectorAll('.controls-panel button[aria-pressed]').forEach((b) => {
-      b.setAttribute('aria-pressed', b.id === 'btn-' + name ? 'true' : 'false');
+    ['btn-goo', 'btn-water', 'btn-smoke'].forEach((id) => {
+      document.getElementById(id).setAttribute('aria-pressed', id === 'btn-' + name ? 'true' : 'false');
     });
   }
+
+  // Keep #controls in sync with JS defaults (single source of truth for load state).
+  function syncControlsFromState() {
+    setEffect(currentEffect);
+    menuModeBtn.textContent = menuMode === 'radial' ? 'Line' : 'Radial';
+    menuModeBtn.setAttribute('aria-pressed', menuMode === 'line' ? 'true' : 'false');
+  }
+  syncControlsFromState();
+  updateControlValueLabels();
 
   function hexToRgb(hex) {
     const n = parseInt(hex.slice(1), 16);
@@ -1201,6 +1445,10 @@ async function main() {
     canvas.style.width = w + 'px';
     canvas.style.height = h + 'px';
     teamDrag.reposition();
+    if (menuMode === 'line') {
+      const c = clampHubForLineMode(teamDrag.state.x, teamDrag.state.y, teamDrag.state.snapped);
+      teamDrag.position(teamDrag.state.snapped, c.cx, c.cy);
+    }
     nerfDrag.reposition();
     computeAngles();
     layoutSatellites();
@@ -1445,7 +1693,6 @@ async function main() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const viscosity = parseFloat(viscosityEl.value) / 100;
     const momentum = parseFloat(momentumEl.value) / 100;
-    const wobbleAmt = parseFloat(wobbleEl.value) / 100;
     const rgb = hexToRgb(colorEl.value);
 
     updateGooWidgets(dt);
@@ -1476,7 +1723,6 @@ async function main() {
     gv.setFloat32(32, viscosity, true);
     gv.setFloat32(36, momentum, true);
     gv.setFloat32(40, visible.length, true);
-    gv.setFloat32(44, wobbleAmt, true);
     gv.setFloat32(48, activeSW, true);
     gv.setFloat32(52, activeSH, true);
     device.queue.writeBuffer(globalsBuffer, 0, globalsData);
