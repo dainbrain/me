@@ -338,6 +338,9 @@
 // =============================================================================
 
 const MAX_WIDGETS = 16;
+// Render at half DPR — goo/water/smoke are smooth effects, visually near-identical at 0.5x.
+// Change to 1.0 to restore native Retina resolution at ~4x the GPU cost.
+const RENDER_SCALE = 0.5;
 
 // =============================================================================
 // SHARED WGSL — included by all three effect shaders (goo, water, smoke).
@@ -1438,7 +1441,7 @@ async function main() {
 
   // --- Resize ---
   function resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2) * RENDER_SCALE;
     const { w, h } = getBodySize();
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
@@ -1477,8 +1480,10 @@ async function main() {
     const bodyRect = document.body.getBoundingClientRect();
     gooWidgets.forEach((gw) => {
       const rect = gw.el.getBoundingClientRect();
-      const cx = rect.left - bodyRect.left + rect.width / 2;
-      const cy = rect.top - bodyRect.top + rect.height / 2;
+      // Round to nearest 0.5px to suppress subpixel float jitter from getBoundingClientRect
+      // on CSS-transformed elements — prevents noise from triggering non-zero velocities.
+      const cx = Math.round((rect.left - bodyRect.left + rect.width / 2) * 2) / 2;
+      const cy = Math.round((rect.top - bodyRect.top + rect.height / 2) * 2) / 2;
       const w = rect.width;
       const h = rect.height;
       const cr = parseFloat(getComputedStyle(gw.el).borderTopLeftRadius) || 0;
@@ -1684,13 +1689,14 @@ async function main() {
   //   6. Render pass 1: active effect (goo/water/smoke) — clear canvas
   //   7. Render pass 2: dart/crack overlay (if any active) — load + composite
   let lastTime = performance.now() / 1000;
+  let idleFrames = 0;
 
   function frame() {
     const now = performance.now() / 1000;
     const dt = Math.min(now - lastTime, 0.05);
     lastTime = now;
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2) * RENDER_SCALE;
     const viscosity = parseFloat(viscosityEl.value) / 100;
     const momentum = parseFloat(momentumEl.value) / 100;
     const rgb = hexToRgb(colorEl.value);
@@ -1698,6 +1704,18 @@ async function main() {
     updateGooWidgets(dt);
 
     const visible = gooWidgets.filter((gw) => Math.max(gw.w, gw.h) > 4);
+
+    // Skip GPU work entirely when nothing is visually changing.
+    // With wobble removed, goo at rest is a static image — no need to redraw.
+    const widgetSpeed = visible.reduce((s, gw) => s + Math.abs(gw.vx) + Math.abs(gw.vy), 0);
+    // Threshold of 5 filters out getBoundingClientRect float jitter (~0.1–2 px/s)
+    // while still catching real drag motion (10+ px/s).
+    const isIdle = widgetSpeed < 5 && activeDarts.length === 0 && activeCracks.length === 0;
+    if (isIdle) {
+      if (++idleFrames > 4) { requestAnimationFrame(frame); return; }
+    } else {
+      idleFrames = 0;
+    }
 
     let activeSW = simW, activeSH = simH;
     if (currentEffect === 'water') {
