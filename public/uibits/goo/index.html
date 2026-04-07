@@ -189,10 +189,13 @@
       padding: 10px 10px 12px;
       border-radius: 10px;
       z-index: 2;
-      background: var(--control-bg);
-      border: 1px solid var(--control-border);
-      backdrop-filter: blur(12px);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      background: rgba(14, 12, 10, 0.25);
+      border: 1px solid rgba(88, 194, 255, 0.28);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(88, 194, 255, 0.10) inset;
     }
     #radial-widget.avatar-status-left .radial-item.avatar-info-open .avatar-info-card {
       left: auto;
@@ -225,14 +228,16 @@
       font-weight: 600;
       color: var(--highlight-color);
       letter-spacing: 0.02em;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
     }
     .avatar-info-card__slack {
       font-size: 0.65rem;
       line-height: 1.45;
-      color: rgba(230, 238, 248, 0.82);
+      color: rgba(255, 255, 255, 0.72);
       margin: 0;
       overflow-wrap: break-word;
       max-width: 100%;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
     }
     .avatar-info-card__compose {
       display: flex;
@@ -247,12 +252,18 @@
       font-size: 0.65rem;
       padding: 6px 8px;
       border-radius: 6px;
-      border: 1px solid var(--control-border);
-      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(88, 194, 255, 0.18);
+      background: rgba(88, 194, 255, 0.05);
       color: var(--foreground-color);
+      outline: none;
+      transition: border-color 140ms ease, background 140ms ease;
+    }
+    .avatar-info-card__input:focus {
+      border-color: rgba(88, 194, 255, 0.40);
+      background: rgba(88, 194, 255, 0.07);
     }
     .avatar-info-card__input::placeholder {
-      color: rgba(200, 220, 255, 0.35);
+      color: rgba(242, 242, 242, 0.25);
     }
     .avatar-info-card__send {
       flex-shrink: 0;
@@ -262,14 +273,14 @@
       align-items: center;
       justify-content: center;
       border-radius: 6px;
-      border: 1px solid var(--control-border);
-      background: rgba(88, 194, 255, 0.12);
+      border: 1px solid rgba(88, 194, 255, 0.28);
+      background: rgba(88, 194, 255, 0.08);
       color: var(--highlight-color);
       cursor: pointer;
-      transition: background 0.15s ease, border-color 0.15s ease;
+      transition: background 140ms ease, border-color 140ms ease;
     }
     .avatar-info-card__send:hover {
-      background: rgba(88, 194, 255, 0.22);
+      background: rgba(88, 194, 255, 0.18);
       border-color: rgba(88, 194, 255, 0.45);
     }
     .avatar-info-card__send svg {
@@ -291,12 +302,19 @@
       bottom: auto;
       box-sizing: border-box;
       border-radius: 4px;
-      border: 1px solid rgba(255, 255, 255, 0.38);
+      border: 1px solid rgba(88, 194, 255, 0.22);
       background: url('desktop-mockup.jpg') center / cover no-repeat;
-      box-shadow: 0 2px 7px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 2px 7px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.15);
+      opacity: 0.55;
       transition: width 0.28s ease, height 0.28s ease, box-shadow 0.28s ease, border-radius 0.28s ease,
-        top 0.28s ease, left 0.28s ease, right 0.28s ease, transform 0.28s ease;
+        top 0.28s ease, left 0.28s ease, right 0.28s ease, transform 0.28s ease, opacity 0.2s ease,
+        border-color 0.2s ease;
       cursor: default;
+    }
+    .avatar-screen-preview:hover {
+      opacity: 1;
+      border-color: rgba(88, 194, 255, 0.45);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.25);
     }
     .radial-item[data-screen-sharing] .avatar-screen-preview {
       display: block;
@@ -959,11 +977,11 @@ fn sample_field(uv: vec2f) -> f32 {
 `;
 
 // =============================================================================
-// DART & GLASS CRACK SHADER — Rendered in a second pass on top of the effect layer.
-// Darts are drawn via SDF (capsule body + circle tip + triangular fins), colored
-// orange with cylindrical shading. Glass cracks are procedural: pseudo-random
-// radial lines from the impact point, branching sub-cracks, and concentric stress
-// rings, all fading over time. Each crack uses a unique seed for variety.
+// DART & GLASS SHATTER — Second pass over the effect layer.
+// Darts: blue cylinder body + rounded orange tip (SDF). Flight paths spawn from
+// far off-screen at steep “over-the-shoulder” angles toward the impact point.
+// Glass: samples glass_shatter_[1-4].svg from a 2D texture array, masked by a
+// radial gradient (strong at center, fades to edges).
 // =============================================================================
 const MAX_DARTS = 8;
 const MAX_CRACKS = 8;
@@ -974,16 +992,15 @@ struct DartGlobals {
   time: f32,
   dart_count: f32,
   crack_count: f32,
-  _p0: f32,
-  _p1: f32,
-  _p2: f32,
+  _p1: f32, _p2: f32, _p3: f32,
 };
 
 struct Dart {
   pos: vec2f,
   angle: f32,
   scale: f32,
-  color: vec4f,
+  alpha: f32,
+  _p1: f32, _p2: f32, _p3: f32,
 };
 
 struct Crack {
@@ -991,7 +1008,7 @@ struct Crack {
   age: f32,
   intensity: f32,
   seed: f32,
-  _p0: f32,
+  shatter_layer: f32,
   _p1: f32,
   _p2: f32,
 };
@@ -999,6 +1016,8 @@ struct Crack {
 @group(0) @binding(0) var<uniform> dg: DartGlobals;
 @group(0) @binding(1) var<storage, read> darts: array<Dart, ${MAX_DARTS}>;
 @group(0) @binding(2) var<storage, read> cracks: array<Crack, ${MAX_CRACKS}>;
+@group(0) @binding(3) var shatter_tex: texture_2d_array<f32>;
+@group(0) @binding(4) var shatter_samp: sampler;
 
 struct VSOut { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
 
@@ -1012,102 +1031,70 @@ struct VSOut { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
 }
 
 fn hash11(p: f32) -> f32 { return fract(sin(p * 127.1) * 43758.5453); }
-fn hash21(p: vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453); }
 
-// Returns vec2f(distance, material_id). material: 1=body, 2=suction tip, 3=tail fins.
-// The dart shape is built from three SDF primitives in local space (rotated + scaled).
-fn sdf_dart(p: vec2f, dart: Dart) -> vec2f {
-  // Transform pixel to dart-local space (rotate by -angle, scale by 1/scale)
+fn render_dart(px: vec2f, dart: Dart) -> vec4f {
+  let dd = abs(px - dart.pos);
+  let mx = dart.scale * 80.0;
+  if (dd.x > mx || dd.y > mx) { return vec4f(0.0); }
+
   let ca = cos(dart.angle);
   let sa = sin(dart.angle);
-  let dp = (p - dart.pos) / dart.scale;
+  let dp = (px - dart.pos) / dart.scale;
   let lp = vec2f(dp.x * ca + dp.y * sa, -dp.x * sa + dp.y * ca);
 
-  // Body: capsule along x-axis (horizontal cylinder in local space)
-  let body_hl = 22.0;
-  let body_r = 4.5;
+  let body_hl = 48.0;
+  let body_r = 10.0;
   let bx = lp.x - clamp(lp.x, -body_hl, body_hl);
   let body = length(vec2f(bx, lp.y)) - body_r;
 
-  // Suction cup tip: circle at the front end
-  let tip_p = lp - vec2f(body_hl + 7.0, 0.0);
-  let tip = length(tip_p) - 6.0;
+  let tip_r = 15.0;
+  let tip_cx = body_hl + tip_r * 0.85;
+  let tip = length(lp - vec2f(tip_cx, 0.0)) - tip_r;
 
-  // Tail fins: triangular flares at the back, width grows with fin_x
-  let fin_x = lp.x + body_hl;
-  let fin_sd = max(-fin_x, max(fin_x - 10.0, abs(lp.y) - fin_x * 0.55 - body_r));
-
-  let d = min(body, min(tip, fin_sd));
-  var mat: f32 = 0.0;
-  if (d == tip) { mat = 2.0; }
-  else if (d == fin_sd) { mat = 3.0; }
-  else { mat = 1.0; }
-  return vec2f(d, mat);
-}
-
-fn render_dart(px: vec2f, dart: Dart) -> vec4f {
-  let hit = sdf_dart(px, dart);
-  let d = hit.x;
-  let mat = hit.y;
-  if (d > 1.0) { return vec4f(0.0); }
+  let d = min(body, tip);
+  if (d > 1.5) { return vec4f(0.0); }
   let aa = 1.0 - smoothstep(-1.0, 1.0, d);
 
   var col: vec3f;
-  if (mat < 1.5) {
-    col = vec3f(1.0, 0.45, 0.05);
-    let ca2 = cos(dart.angle);
-    let sa2 = sin(dart.angle);
-    let dp2 = (px - dart.pos) / dart.scale;
-    let ly = -dp2.x * sa2 + dp2.y * ca2;
-    let shade = 0.7 + 0.3 * (1.0 - abs(ly) / 5.0);
-    col *= shade;
-  } else if (mat < 2.5) {
-    col = vec3f(1.0, 0.55, 0.15);
+  if (body < tip) {
+    let shade = 0.52 + 0.48 * smoothstep(-body_r, body_r, lp.y);
+    let edge = 0.88 + 0.12 * (1.0 - abs(lp.y) / body_r);
+    col = vec3f(0.1, 0.38, 0.92) * shade * edge;
   } else {
-    col = vec3f(0.85, 0.35, 0.02);
+    let tc = lp - vec2f(tip_cx, 0.0);
+    let hi = 1.0 - smoothstep(0.0, tip_r, length(tc));
+    col = mix(vec3f(1.0, 0.38, 0.06), vec3f(1.0, 0.72, 0.28), hi * 0.55);
   }
 
-  let a = aa * dart.color.a;
+  let a = aa * dart.alpha;
   return vec4f(col * a, a);
 }
 
 fn render_crack(px: vec2f, crack: Crack) -> vec4f {
   let d = px - crack.pos;
   let dist = length(d);
-  let max_r = (100.0 + crack.seed * 0.5) * (dg.resolution.x / 1512.0);
+  let max_r = 260.0 * (dg.resolution.x / 1512.0);
   if (dist > max_r) { return vec4f(0.0); }
-  let angle = atan2(d.y, d.x);
 
-  var crack_val: f32 = 0.0;
-  let n_lines = 8u + u32(crack.seed * 0.04) % 5u;
-  for (var i = 0u; i < 13u; i++) {
-    if (i >= n_lines) { break; }
-    let ca = hash11(f32(i) + crack.seed * 7.3) * 6.2832;
-    let ad = abs(angle - ca);
-    let ad2 = min(ad, 6.2832 - ad);
-    let w = 1.2 + hash11(f32(i) + crack.seed * 3.1) * 0.8;
-    crack_val = max(crack_val, smoothstep(w, 0.0, ad2 * dist));
+  let layer = i32(clamp(crack.shatter_layer, 0.0, 3.0));
+  let rot = hash11(crack.seed + 7.31) * 6.28318;
+  let ca = cos(rot);
+  let sa = sin(rot);
+  let rd = vec2f(d.x * ca + d.y * sa, -d.x * sa + d.y * ca);
 
-    let bca = ca + (hash11(f32(i) + crack.seed * 11.0) - 0.5) * 1.2;
-    let b_start = max_r * 0.25 + hash11(f32(i) + crack.seed * 5.0) * max_r * 0.3;
-    if (dist > b_start) {
-      let bad = abs(angle - bca);
-      let bad2 = min(bad, 6.2832 - bad);
-      crack_val = max(crack_val, smoothstep(0.8, 0.0, bad2 * dist) * 0.7);
-    }
-  }
+  let uv = rd / (max_r * 2.0) + vec2f(0.5);
+  let uvcl = clamp(uv, vec2f(0.002), vec2f(0.998));
+  let samp = textureSampleLevel(shatter_tex, shatter_samp, uvcl, layer, 0.0);
 
-  let ring_sp = 18.0 + hash11(crack.seed * 2.7) * 12.0;
-  let rv = abs(fract(dist / ring_sp) * ring_sp - ring_sp * 0.5);
-  crack_val = max(crack_val, smoothstep(1.2, 0.0, rv) * 0.6);
+  let stroke = max(samp.a, max(samp.r, max(samp.g, samp.b)));
+  if (stroke < 0.01) { return vec4f(0.0); }
 
-  let fade = 1.0 - smoothstep(max_r * 0.4, max_r, dist);
-  let t_fade = crack.intensity;
-  let v = crack_val * fade * t_fade;
-  if (v < 0.01) { return vec4f(0.0); }
+  let t = dist / max_r;
+  let falloff = 1.0 - smoothstep(0.0, 1.0, t);
+  let a = min(stroke * falloff * crack.intensity, 1.0);
+  if (a < 0.01) { return vec4f(0.0); }
 
-  let glass = vec3f(0.85, 0.92, 1.0);
-  let a = v * 0.85;
+  let glass = vec3f(0.85, 0.95, 1.0);
   return vec4f(glass * a, a);
 }
 
@@ -1115,21 +1102,72 @@ fn render_crack(px: vec2f, crack: Crack) -> vec4f {
   let px = v.uv * dg.resolution;
   var col = vec4f(0.0);
 
-  for (var i = 0; i < ${MAX_CRACKS}; i++) {
-    if (i >= i32(dg.crack_count)) { break; }
-    let c = render_crack(px, cracks[i]);
-    col = col + c * (1.0 - col.a);
-  }
-
+  // Darts first, then glass cracks on top (otherwise the dart covers the impact shatter).
   for (var i = 0; i < ${MAX_DARTS}; i++) {
     if (i >= i32(dg.dart_count)) { break; }
     let d = render_dart(px, darts[i]);
     col = col + d * (1.0 - col.a);
   }
 
+  for (var i = 0; i < ${MAX_CRACKS}; i++) {
+    if (i >= i32(dg.crack_count)) { break; }
+    let c = render_crack(px, cracks[i]);
+    col = col + c * (1.0 - col.a);
+  }
+
   return col;
 }
 `;
+
+// Rasterize SVG to raw RGBA pixels: fetch → Image → canvas → getImageData.
+// Bypasses createImageBitmap and copyExternalImageToTexture entirely.
+async function svgToPixels(url, size) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`fetch ${url}: ${res.status}`);
+  const svgText = await res.text();
+  const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+  const objUrl = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    img.width = size;
+    img.height = size;
+    await new Promise((ok, fail) => { img.onload = ok; img.onerror = fail; img.src = objUrl; });
+    const c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, size, size);
+    ctx.drawImage(img, 0, 0, size, size);
+    return ctx.getImageData(0, 0, size, size);
+  } finally {
+    URL.revokeObjectURL(objUrl);
+  }
+}
+
+// Load glass_shatter_[1-4].svg into a 2D array texture via raw writeTexture.
+async function loadGlassShatterTextures(device, size = 512) {
+  const names = ['glass_shatter_1.svg', 'glass_shatter_2.svg', 'glass_shatter_3.svg', 'glass_shatter_4.svg'];
+  const texture = device.createTexture({
+    label: 'glass-shatter',
+    size: { width: size, height: size, depthOrArrayLayers: 4 },
+    format: 'rgba8unorm',
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  });
+  for (let i = 0; i < 4; i++) {
+    const pixels = await svgToPixels('./' + names[i], size);
+    device.queue.writeTexture(
+      { texture, origin: { x: 0, y: 0, z: i } },
+      pixels.data,
+      { bytesPerRow: size * 4 },
+      { width: size, height: size },
+    );
+  }
+  return {
+    sampler: device.createSampler({ magFilter: 'linear', minFilter: 'linear',
+      addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' }),
+    textureView: texture.createView({ dimension: '2d-array', arrayLayerCount: 4 }),
+  };
+}
 
 // =============================================================================
 // MAIN — WebGPU initialization, pipeline creation, simulation setup, frame loop
@@ -1247,11 +1285,38 @@ async function main() {
   const dartBuffer = device.createBuffer({ size: MAX_DARTS * dartStride, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   const crackBuffer = device.createBuffer({ size: MAX_CRACKS * crackStride, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
 
+  let shatterResources;
+  try {
+    shatterResources = await loadGlassShatterTextures(device);
+  } catch (e) {
+    console.warn('Glass shatter SVG load failed; using empty crack texture.', e);
+    const dummy = device.createTexture({
+      size: { width: 1, height: 1, depthOrArrayLayers: 4 },
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+    });
+    const px = new Uint8Array([0, 0, 0, 0]);
+    for (let i = 0; i < 4; i++) {
+      device.queue.writeTexture(
+        { texture: dummy, origin: { x: 0, y: 0, z: i } },
+        px,
+        { bytesPerRow: 4 },
+        { width: 1, height: 1, depthOrArrayLayers: 1 }
+      );
+    }
+    shatterResources = {
+      sampler: device.createSampler({ magFilter: 'linear', minFilter: 'linear' }),
+      textureView: dummy.createView({ dimension: '2d-array', arrayLayerCount: 4 }),
+    };
+  }
+
   const dartBGL = device.createBindGroupLayout({
     entries: [
       { binding: 0, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
       { binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
       { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+      { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
+      { binding: 4, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
     ],
   });
 
@@ -1280,6 +1345,8 @@ async function main() {
       { binding: 0, resource: { buffer: dartGlobalsBuffer } },
       { binding: 1, resource: { buffer: dartBuffer } },
       { binding: 2, resource: { buffer: crackBuffer } },
+      { binding: 3, resource: shatterResources.textureView },
+      { binding: 4, resource: shatterResources.sampler },
     ],
   });
 
@@ -1914,8 +1981,8 @@ async function main() {
 
   // --- Nerf dart widget ---
   // A draggable crosshair button. Click fires a nerf dart that:
-  //   1. Flies in from a random off-screen edge toward a random target (0.3-0.45s)
-  //   2. On impact: spawns a procedural glass crack effect at the hit point
+  //   1. Flies from far off-screen at a steep “over-the-shoulder” angle toward a random target
+  //   2. On impact: spawns a glass shatter (SVG texture + radial mask) at the hit point
   //   3. Bounces with gravity (900 px/s²), wall/floor collisions, and tumbling
   //   4. Rests at the floor, then fades out over ~1.5s
   // All rendering happens in the WebGPU dart/crack overlay pipeline (second pass).
@@ -1929,25 +1996,29 @@ async function main() {
     const tx = 80 + Math.random() * (bw - 160);
     const ty = 60 + Math.random() * (bh - 200);
 
-    const edges = [
-      { x: -60, y: Math.random() * bh },
-      { x: bw + 60, y: Math.random() * bh },
-      { x: Math.random() * bw, y: -60 },
-    ];
-    const start = edges[Math.floor(Math.random() * edges.length)];
+    // From “behind” the viewer: start near lower-center, small Z (large on screen), fly into the plane.
+    const start = {
+      x: bw * (0.5 + (Math.random() - 0.5) * 0.26),
+      y: bh * (0.76 + (Math.random() - 0.5) * 0.14),
+    };
+
+    const dx = tx - start.x;
+    const dy = ty - start.y;
+    const dist = Math.hypot(dx, dy);
+    const flyDuration = Math.min(0.95, Math.max(0.32, 0.22 + dist / 1400));
 
     activeDarts.push({
       x: start.x, y: start.y,
       startX: start.x, startY: start.y,
       targetX: tx, targetY: ty,
       vx: 0, vy: 0,
-      angle: Math.atan2(ty - start.y, tx - start.x),
+      angle: Math.atan2(dy, dx),
       angVel: 0,
-      scale: 0.35,
+      scale: 2.5,
       alpha: 1,
       phase: 'flying',
       flyTime: 0,
-      flyDuration: 0.3 + Math.random() * 0.15,
+      flyDuration,
       restTime: 0,
     });
   }
@@ -1966,7 +2037,7 @@ async function main() {
         const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
         d.x = d.startX + (d.targetX - d.startX) * ease;
         d.y = d.startY + (d.targetY - d.startY) * ease;
-        d.scale = 0.35 + ease * 0.65;
+        d.scale = 2.5 - 1.5 * ease;
         d.angle = Math.atan2(d.targetY - d.startY, d.targetX - d.startX);
 
         if (t >= 1) {
@@ -1981,8 +2052,10 @@ async function main() {
           activeCracks.push({
             x: d.targetX, y: d.targetY,
             birthTime: performance.now() / 1000,
-            intensity: 1,
-            seed: Math.random() * 200,
+            intensity: 1.0,
+            // small seed just for rotation variation — kept low so crack.seed * 0.0731 stays a sane angle
+            seed: Math.random() * 86,
+            shatterIdx: Math.floor(Math.random() * 4),
           });
         }
       } else if (d.phase === 'bouncing') {
@@ -2458,10 +2531,7 @@ async function main() {
         ddv.setFloat32(off + 4, d.y * dpr, true);
         ddv.setFloat32(off + 8, d.angle, true);
         ddv.setFloat32(off + 12, d.scale * dpr, true);
-        ddv.setFloat32(off + 16, 1.0, true);
-        ddv.setFloat32(off + 20, 0.45, true);
-        ddv.setFloat32(off + 24, 0.05, true);
-        ddv.setFloat32(off + 28, d.alpha, true);
+        ddv.setFloat32(off + 16, d.alpha, true);
       }
       device.queue.writeBuffer(dartBuffer, 0, dBuf);
     }
@@ -2477,6 +2547,7 @@ async function main() {
         cdv.setFloat32(off + 8, now - c.birthTime, true);
         cdv.setFloat32(off + 12, c.intensity, true);
         cdv.setFloat32(off + 16, c.seed, true);
+        cdv.setFloat32(off + 20, c.shatterIdx, true);
       }
       device.queue.writeBuffer(crackBuffer, 0, cBuf);
     }
