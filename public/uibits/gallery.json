@@ -1,0 +1,17 @@
+{
+  "generated": "2026-04-07T01:25:42.171Z",
+  "experiments": [
+    {
+      "slug": "hello",
+      "href": "/uibits/hello/",
+      "title": "Hello (starter)",
+      "description": "Starter UI bit — gradient mesh and a little motion."
+    },
+    {
+      "slug": "goo",
+      "href": "/uibits/goo/",
+      "title": "WebGPU shader overlay",
+      "description": "WebGPU shader overlay with draggable widgets and switchable effects (goo, water, smoke)."
+    }
+  ]
+}

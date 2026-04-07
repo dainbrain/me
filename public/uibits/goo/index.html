@@ -1,0 +1,1588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="WebGPU shader overlay with draggable widgets and switchable effects (goo, water, smoke).">
+  <title>WebGPU shader overlay</title>
+  <style>
+    :root {
+      --background-color: #0E0C0A;
+      --foreground-color: #F2F2F2;
+      --highlight-color: #58C2FF;
+      --control-bg: rgba(14, 12, 10, 0.82);
+      --control-border: rgba(88, 194, 255, 0.18);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { height: 100%; background: #000; font-family: "IBM Plex Mono", ui-monospace, monospace; display: flex; justify-content: center; align-items: center; }
+
+    body {
+      width: 1512px;
+      height: 982px;
+      max-width: 100vw;
+      max-height: 100vh;
+      position: relative;
+      overflow: hidden;
+      background: var(--background-color) url('desktop-mockup.jpg') center / cover no-repeat;
+      flex-shrink: 0;
+    }
+
+    canvas#shader {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .widget-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+    }
+
+    .widget {
+      position: absolute;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .circle {
+      background-color: var(--highlight-color);
+      border: 3px solid var(--highlight-color);
+      border-radius: 50%;
+      aspect-ratio: 1;
+      color: var(--background-color);
+      overflow: hidden;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .circle img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      pointer-events: none;
+    }
+    .circle .icon {
+      width: 85%;
+      height: 85%;
+    }
+
+    .circle--hub {
+      width: 40px; 
+      height: 40px;
+      cursor: pointer;
+      transition: transform 200ms ease;
+      position: relative;
+      z-index: 2;
+    }
+    .circle--hub:hover { transform: scale(1.08); }
+    .circle--hub .icon { width: 75%; height: 75%; }
+
+    .circle--avatar { width: 52px; height: 52px; }
+
+    .circle--crosshair {
+      width: 44px;
+      height: 44px;
+      cursor: crosshair;
+      background: var(--control-bg);
+      border-color: var(--control-border);
+      backdrop-filter: blur(10px);
+      transition: transform 150ms ease, border-color 150ms ease;
+    }
+    .circle--crosshair:hover {
+      transform: scale(1.12);
+      border-color: var(--highlight-color);
+    }
+    .circle--crosshair:active { transform: scale(0.92); }
+    .circle--crosshair .icon { stroke: var(--highlight-color); width: 60%; height: 60%; }
+
+    .radial-menu {
+      position: relative;
+    }
+
+    .radial-item {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      margin-left: -26px;
+      margin-top: -26px;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(0, 0) scale(0);
+      transition: transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                  opacity 200ms ease;
+    }
+
+    .radial-menu.open .radial-item {
+      pointer-events: auto;
+      opacity: 1;
+    }
+
+    .radial-item:nth-child(1) { transition-delay: 0ms; }
+    .radial-item:nth-child(2) { transition-delay: 50ms; }
+    .radial-item:nth-child(3) { transition-delay: 100ms; }
+    .radial-item:nth-child(4) { transition-delay: 150ms; }
+    .radial-item:nth-child(5) { transition-delay: 200ms; }
+
+    .widget.snapped {
+      transition: left 250ms cubic-bezier(0.22, 1, 0.36, 1),
+                  right 250ms cubic-bezier(0.22, 1, 0.36, 1),
+                  top 250ms cubic-bezier(0.22, 1, 0.36, 1),
+                  bottom 250ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .radial-item { transition: none; }
+      .widget.snapped { transition: none; }
+    }
+
+    .controls-panel {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: flex;
+      gap: 8px;
+      align-items: end;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .controls-panel button {
+      background: var(--control-bg);
+      border: 1px solid var(--control-border);
+      color: var(--foreground-color);
+      font-family: inherit;
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 8px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      transition: border-color 180ms ease, background 180ms ease;
+    }
+    .controls-panel button[aria-pressed="true"] {
+      background: rgba(88, 194, 255, 0.18);
+      border-color: var(--highlight-color);
+      color: var(--highlight-color);
+    }
+    .controls-panel button:hover {
+      border-color: rgba(88, 194, 255, 0.5);
+    }
+
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      background: var(--control-bg);
+      border: 1px solid var(--control-border);
+      border-radius: 12px;
+      padding: 8px 12px;
+      backdrop-filter: blur(10px);
+    }
+    .slider-group label {
+      font-size: 0.52rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(200, 228, 255, 0.5);
+    }
+    .slider-group input[type="range"] {
+      width: 80px;
+      accent-color: var(--highlight-color);
+    }
+    .slider-group input[type="color"] {
+      width: 28px;
+      height: 22px;
+      border: none;
+      background: none;
+      cursor: pointer;
+    }
+
+    .no-webgpu {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      z-index: 100;
+      color: var(--foreground-color);
+      font-size: 0.9rem;
+      text-align: center;
+      padding: 2rem;
+      background: var(--background-color);
+    }
+  </style>
+</head>
+<body>
+  <!-- WebGPU shader canvas: transparent overlay, pointer-events: none, z-index 1 -->
+  <canvas id="shader" aria-hidden="true"></canvas>
+
+  <!-- Widget layer: HTML/CSS widgets sit above the shader (z-index 2).
+       Any element with [data-goo] is tracked by the shader for reactive effects. -->
+  <div class="widget-layer" id="widget-layer">
+    <div class="widget" id="radial-widget" style="left:200px;top:300px">
+      <div class="radial-menu" id="radial-menu">
+        <a class="radial-item" href="#" title="Alex">
+          <div class="circle circle--avatar" data-goo><img src="https://i.pravatar.cc/120?img=11" alt="Alex"></div>
+        </a>
+        <a class="radial-item" href="#" title="Jordan">
+          <div class="circle circle--avatar" data-goo><img src="https://i.pravatar.cc/120?img=32" alt="Jordan"></div>
+        </a>
+        <a class="radial-item" href="#" title="Sam">
+          <div class="circle circle--avatar" data-goo><img src="https://i.pravatar.cc/120?img=47" alt="Sam"></div>
+        </a>
+        <a class="radial-item" href="#" title="Casey">
+          <div class="circle circle--avatar" data-goo><img src="https://i.pravatar.cc/120?img=68" alt="Casey"></div>
+        </a>
+        <div class="circle circle--hub" id="hub-btn" data-goo role="button" tabindex="0" aria-label="Open menu" aria-expanded="false">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M9 10a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M6.168 18.849a4 4 0 0 1 3.832 -2.849h4a4 4 0 0 1 3.834 2.855" /></svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="widget" id="nerf-widget" style="left:400px;top:200px">
+      <div class="circle circle--crosshair circle--hub" id="nerf-btn" data-goo role="button" tabindex="0" aria-label="Fire nerf dart">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon"><circle cx="12" cy="12" r="10"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><circle cx="12" cy="12" r="2"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls: effect switcher + parameter sliders. Positioned fixed at bottom center. -->
+  <div class="controls-panel" id="controls">
+    <button id="btn-goo" aria-pressed="true">Goo</button>
+    <button id="btn-water" aria-pressed="false">Water</button>
+    <button id="btn-smoke" aria-pressed="false">Smoke</button>
+    <div class="slider-group">
+      <label for="viscosity">Viscosity</label>
+      <input type="range" id="viscosity" min="0" max="100" value="40">
+    </div>
+    <div class="slider-group">
+      <label for="momentum">Momentum</label>
+      <input type="range" id="momentum" min="0" max="100" value="50">
+    </div>
+    <div class="slider-group">
+      <label for="wobble">Wobble</label>
+      <input type="range" id="wobble" min="0" max="100" value="30">
+    </div>
+    <div class="slider-group">
+      <label for="effect-color">Color</label>
+      <input type="color" id="effect-color" value="#58C2FF">
+    </div>
+  </div>
+
+  <script>
+// =============================================================================
+// ARCHITECTURE OVERVIEW
+// =============================================================================
+//
+// This is a full-screen WebGPU shader overlay for use in an Electron-style app.
+// The stack has three layers (bottom to top):
+//
+//   1. BACKGROUND — a desktop mockup image (CSS background on <body>)
+//   2. SHADER LAYER — a <canvas> covering the body, renders via WebGPU.
+//      Transparent (alphaMode: premultiplied), pointer-events: none.
+//      Currently supports three switchable effects:
+//        - GOO:   Liquid/metaball SDF blending around widgets (purely analytical)
+//        - WATER: 2D wave equation sim (Hugo Elias algorithm, CPU-side)
+//        - SMOKE: 2D Navier-Stokes fluid sim (CPU-side advection + vorticity)
+//      Plus an overlay pipeline for darts & glass crack effects.
+//   3. WIDGET LAYER — HTML/CSS elements with [data-goo] attributes that the
+//      shader layer reacts to. Draggable via the generic makeDraggable() system
+//      with edge-snapping. Currently two widgets:
+//        - Team radial menu (hub + avatar satellites)
+//        - Nerf dart crosshair button
+//
+// All widgets are scanned at init via querySelectorAll('[data-goo]'). Each frame,
+// their bounding rects are read, velocities computed via smoothed deltas, and
+// positions/sizes written to a GPU storage buffer for the shaders to consume.
+//
+// The water and smoke effects use CPU-side simulations (Float32Arrays with
+// ping-pong or advection), uploaded to binding(2) as a storage buffer each frame.
+// The goo effect is purely analytical (no simulation buffer needed).
+//
+// Coordinate spaces:
+//   - "body px"   — relative to <body> top-left (widget positions live here)
+//   - "canvas px" — body px * devicePixelRatio (shader resolution, GPU buffers)
+//   - "sim px"    — body px / 2 (water) or / 4 (smoke), for CPU sim grids
+//   - "UV"        — 0..1 normalized (vertex shader output, fragment shader input)
+// =============================================================================
+
+const MAX_WIDGETS = 16;
+
+// =============================================================================
+// SHARED WGSL — included by all three effect shaders (goo, water, smoke).
+// Defines the Globals uniform struct, Widget storage struct, full-screen quad
+// vertex shader, and a universal rounded-rect SDF function.
+// =============================================================================
+const SHARED_WGSL = `
+// All fields are written from JS each frame. Struct is 64 bytes (16-byte aligned due to vec4f).
+struct Globals {
+  resolution: vec2f,     // canvas size in device pixels (body * dpr)
+  time: f32,             // performance.now() / 1000
+  dt: f32,               // frame delta in seconds (capped at 0.05)
+  color: vec4f,          // user-selected effect color (from color picker)
+  viscosity: f32,        // slider 0..1 — controls damping / field persistence
+  momentum: f32,         // slider 0..1 — controls velocity reactivity
+  widget_count: f32,     // number of active widgets this frame
+  wobble: f32,           // slider 0..1 — ambient displacement (goo wobble)
+  sim_size: vec2f,       // water/smoke sim grid dimensions (in sim pixels)
+  _pad0: f32,
+  _pad1: f32,
+};
+
+// Per-widget data written from JS. 32 bytes per widget.
+struct Widget {
+  pos: vec2f,            // center position in canvas pixels
+  vel: vec2f,            // smoothed velocity in body px/s (not DPR-scaled)
+  size: vec2f,           // width, height in canvas pixels
+  radius: f32,           // CSS border-radius in canvas pixels (for SDF)
+  _pad: f32,
+};
+
+@group(0) @binding(0) var<uniform> globals: Globals;
+@group(0) @binding(1) var<storage, read> widgets: array<Widget, ${MAX_WIDGETS}>;
+
+struct VSOut {
+  @builtin(position) pos: vec4f,
+  @location(0) uv: vec2f,
+};
+
+@vertex fn vs(@builtin(vertex_index) i: u32) -> VSOut {
+  var p = array<vec2f, 4>(vec2f(-1,-1), vec2f(1,-1), vec2f(-1,1), vec2f(1,1));
+  var out: VSOut;
+  out.pos = vec4f(p[i], 0, 1);
+  out.uv = (p[i] + 1.0) * 0.5;
+  out.uv.y = 1.0 - out.uv.y;
+  return out;
+}
+
+// Universal rounded-rectangle SDF. Handles circles as a special case when
+// r >= min(half.x, half.y). Returns negative inside, zero on surface, positive outside.
+fn sdf_shape(delta: vec2f, half: vec2f, r: f32) -> f32 {
+  let cr = min(r, min(half.x, half.y));
+  let q = abs(delta) - half + vec2f(cr);
+  return length(max(q, vec2f(0.0))) + min(max(q.x, q.y), 0.0) - cr;
+}
+`;
+
+// =============================================================================
+// GOO SHADER — Purely analytical, no simulation buffer.
+// Renders a solid-color metaball-style liquid that merges widgets together.
+// Uses smin (smooth minimum) to blend SDF fields from all widgets + screen edges.
+// Velocity-based distortion stretches the goo into teardrop shapes during movement.
+// The wobble uniform adds ambient sine displacement for organic feel.
+// =============================================================================
+const GOO_WGSL = SHARED_WGSL + `
+// Smooth minimum blends two SDF values with a smooth transition zone of width k.
+fn smin(a: f32, b: f32, k: f32) -> f32 {
+  let h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+@fragment fn fs(v: VSOut) -> @location(0) vec4f {
+  let px = v.uv * globals.resolution;
+  let n = i32(globals.widget_count);
+  let t = globals.time;
+
+  let k = 12.0 + globals.viscosity * 60.0;
+  let wa = globals.wobble * 3.0;
+  let sp = px + vec2f(
+    sin(px.y * 0.02 + t * 1.6) * wa + sin(px.y * 0.052 + t * 3.1) * wa * 0.3,
+    sin(px.x * 0.017 + t * 1.3) * wa + sin(px.x * 0.046 + t * 2.7) * wa * 0.3
+  );
+
+  let edge_margin = 5.0;
+  var d: f32 = min(
+    min(sp.x + edge_margin, globals.resolution.x - sp.x + edge_margin),
+    min(sp.y + edge_margin, globals.resolution.y - sp.y + edge_margin)
+  );
+
+  for (var i = 0; i < ${MAX_WIDGETS}; i++) {
+    if (i >= n) { break; }
+    let w = widgets[i];
+    let delta = sp - w.pos;
+    let speed = length(w.vel);
+    let mom = globals.momentum;
+    let half = w.size * 0.5;
+
+    var wd: f32;
+    if (speed > 0.5) {
+      let vd = w.vel / speed;
+      let along = dot(delta, vd);
+      let perp = delta - vd * along;
+      let squash = 1.0 / (1.0 + speed * mom * 0.0008);
+      let shifted = along + speed * mom * 0.04;
+      wd = sdf_shape(vd * shifted * squash + perp, half, w.radius);
+    } else {
+      wd = sdf_shape(delta, half, w.radius);
+    }
+
+    d = smin(d, wd, k);
+  }
+
+  let aa = 0.5;
+  let body = 1.0 - smoothstep(-aa, aa, d);
+  let c = globals.color.rgb;
+  return vec4f(c * body, body);
+}
+`;
+
+// =============================================================================
+// WATER SHADER — Reads from a CPU-computed wave height field (binding 2).
+// The wave sim runs the Hugo Elias 2D wave equation on CPU (see stepWaveSim).
+// This shader samples the height field, computes surface normals via finite
+// differences, and applies Blinn-Phong lighting with a specular highlight.
+// Completely transparent at rest (early-out when energy < threshold).
+// =============================================================================
+const WATER_WGSL = SHARED_WGSL + `
+// Wave height field uploaded from CPU each frame (simW * simH floats)
+@group(0) @binding(2) var<storage, read> wave: array<f32>;
+
+@fragment fn fs(v: VSOut) -> @location(0) vec4f {
+  let sw = i32(globals.sim_size.x);
+  let sh = i32(globals.sim_size.y);
+  if (sw < 2 || sh < 2) { return vec4f(0.0); }
+
+  let sx = clamp(i32(v.uv.x * globals.sim_size.x), 0, sw - 1);
+  let sy = clamp(i32(v.uv.y * globals.sim_size.y), 0, sh - 1);
+
+  let h   = wave[sy * sw + sx];
+  let h_r = wave[sy * sw + min(sx + 1, sw - 1)];
+  let h_u = wave[max(sy - 1, 0) * sw + sx];
+
+  let gx = h_r - h;
+  let gy = h_u - h;
+  let energy = abs(h) + length(vec2f(gx, gy)) * 8.0;
+  if (energy < 0.001) { return vec4f(0.0); }
+
+  let normal = normalize(vec3f(-gx * 60.0, -gy * 60.0, 1.0));
+  let light = normalize(vec3f(1.0, -1.0, 0.7));
+  let half_v = normalize(light + vec3f(0.0, 0.0, 1.0));
+  let spec = pow(max(dot(normal, half_v), 0.0), 60.0);
+  let diff = dot(normal, light) * 0.5 + 0.5;
+
+  let c = globals.color.rgb;
+  let tint = c * 0.2 * (diff * 2.0 - 1.0);
+  let specular = vec3f(1.0) * spec;
+  let color_out = max(tint + specular, vec3f(0.0));
+  let alpha = clamp(energy * 5.0, 0.0, 0.6);
+
+  return vec4f(color_out * alpha, alpha);
+}
+`;
+
+// =============================================================================
+// SMOKE SHADER — Reads from a CPU-computed density field (binding 2).
+// The smoke sim is a 2D Navier-Stokes solver (see stepSmokeSim) with
+// semi-Lagrangian advection + vorticity confinement. Density is injected at
+// widget surfaces proportional to movement speed, then advected by the velocity
+// field to create trailing wisps. Uses bilinear interpolation for smooth output
+// and gradient-based lighting for subtle 3D depth.
+// =============================================================================
+const SMOKE_WGSL = SHARED_WGSL + `
+// Smoke density field uploaded from CPU each frame (smokeW * smokeH floats)
+@group(0) @binding(2) var<storage, read> field: array<f32>;
+
+// Bilinear interpolation for smooth density sampling at sub-pixel coordinates
+fn sample_field(uv: vec2f) -> f32 {
+  let sw = globals.sim_size.x;
+  let sh = globals.sim_size.y;
+  let fx = uv.x * sw - 0.5;
+  let fy = uv.y * sh - 0.5;
+  let ix = i32(floor(fx));
+  let iy = i32(floor(fy));
+  let s = fract(fx);
+  let t = fract(fy);
+  let isw = i32(sw);
+  let ish = i32(sh);
+  let cix  = clamp(ix,     0, isw - 1);
+  let ciy  = clamp(iy,     0, ish - 1);
+  let cix1 = clamp(ix + 1, 0, isw - 1);
+  let ciy1 = clamp(iy + 1, 0, ish - 1);
+  let a = field[ciy  * isw + cix];
+  let b = field[ciy  * isw + cix1];
+  let cc = field[ciy1 * isw + cix];
+  let d = field[ciy1 * isw + cix1];
+  return mix(mix(a, b, s), mix(cc, d, s), t);
+}
+
+@fragment fn fs(v: VSOut) -> @location(0) vec4f {
+  let sw = i32(globals.sim_size.x);
+  let sh = i32(globals.sim_size.y);
+  if (sw < 2 || sh < 2) { return vec4f(0.0); }
+
+  let d = sample_field(v.uv);
+  if (d < 0.003) { return vec4f(0.0); }
+
+  let eps = vec2f(1.0 / globals.sim_size.x, 1.0 / globals.sim_size.y);
+  let dx = sample_field(v.uv + vec2f(eps.x, 0.0)) - d;
+  let dy = sample_field(v.uv + vec2f(0.0, eps.y)) - d;
+
+  let normal = normalize(vec3f(-dx * 25.0, -dy * 25.0, 1.0));
+  let light = normalize(vec3f(1.0, -1.0, 0.8));
+  let diff = dot(normal, light) * 0.5 + 0.5;
+
+  let c = globals.color.rgb;
+  let lit = c * mix(0.5, 1.3, diff);
+  let alpha = clamp(d * 0.85, 0.0, 0.75);
+  return vec4f(lit * alpha, alpha);
+}
+`;
+
+// =============================================================================
+// DART & GLASS CRACK SHADER — Rendered in a second pass on top of the effect layer.
+// Darts are drawn via SDF (capsule body + circle tip + triangular fins), colored
+// orange with cylindrical shading. Glass cracks are procedural: pseudo-random
+// radial lines from the impact point, branching sub-cracks, and concentric stress
+// rings, all fading over time. Each crack uses a unique seed for variety.
+// =============================================================================
+const MAX_DARTS = 8;
+const MAX_CRACKS = 8;
+
+const DART_CRACK_WGSL = `
+struct DartGlobals {
+  resolution: vec2f,
+  time: f32,
+  dart_count: f32,
+  crack_count: f32,
+  _p0: f32,
+  _p1: f32,
+  _p2: f32,
+};
+
+struct Dart {
+  pos: vec2f,
+  angle: f32,
+  scale: f32,
+  color: vec4f,
+};
+
+struct Crack {
+  pos: vec2f,
+  age: f32,
+  intensity: f32,
+  seed: f32,
+  _p0: f32,
+  _p1: f32,
+  _p2: f32,
+};
+
+@group(0) @binding(0) var<uniform> dg: DartGlobals;
+@group(0) @binding(1) var<storage, read> darts: array<Dart, ${MAX_DARTS}>;
+@group(0) @binding(2) var<storage, read> cracks: array<Crack, ${MAX_CRACKS}>;
+
+struct VSOut { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
+
+@vertex fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
+  var p = array<vec2f, 4>(vec2f(-1,-1), vec2f(1,-1), vec2f(-1,1), vec2f(1,1));
+  var o: VSOut;
+  o.pos = vec4f(p[vi], 0, 1);
+  o.uv = p[vi] * 0.5 + 0.5;
+  o.uv.y = 1.0 - o.uv.y;
+  return o;
+}
+
+fn hash11(p: f32) -> f32 { return fract(sin(p * 127.1) * 43758.5453); }
+fn hash21(p: vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453); }
+
+// Returns vec2f(distance, material_id). material: 1=body, 2=suction tip, 3=tail fins.
+// The dart shape is built from three SDF primitives in local space (rotated + scaled).
+fn sdf_dart(p: vec2f, dart: Dart) -> vec2f {
+  // Transform pixel to dart-local space (rotate by -angle, scale by 1/scale)
+  let ca = cos(dart.angle);
+  let sa = sin(dart.angle);
+  let dp = (p - dart.pos) / dart.scale;
+  let lp = vec2f(dp.x * ca + dp.y * sa, -dp.x * sa + dp.y * ca);
+
+  // Body: capsule along x-axis (horizontal cylinder in local space)
+  let body_hl = 22.0;
+  let body_r = 4.5;
+  let bx = lp.x - clamp(lp.x, -body_hl, body_hl);
+  let body = length(vec2f(bx, lp.y)) - body_r;
+
+  // Suction cup tip: circle at the front end
+  let tip_p = lp - vec2f(body_hl + 7.0, 0.0);
+  let tip = length(tip_p) - 6.0;
+
+  // Tail fins: triangular flares at the back, width grows with fin_x
+  let fin_x = lp.x + body_hl;
+  let fin_sd = max(-fin_x, max(fin_x - 10.0, abs(lp.y) - fin_x * 0.55 - body_r));
+
+  let d = min(body, min(tip, fin_sd));
+  var mat: f32 = 0.0;
+  if (d == tip) { mat = 2.0; }
+  else if (d == fin_sd) { mat = 3.0; }
+  else { mat = 1.0; }
+  return vec2f(d, mat);
+}
+
+fn render_dart(px: vec2f, dart: Dart) -> vec4f {
+  let hit = sdf_dart(px, dart);
+  let d = hit.x;
+  let mat = hit.y;
+  if (d > 1.0) { return vec4f(0.0); }
+  let aa = 1.0 - smoothstep(-1.0, 1.0, d);
+
+  var col: vec3f;
+  if (mat < 1.5) {
+    col = vec3f(1.0, 0.45, 0.05);
+    let ca2 = cos(dart.angle);
+    let sa2 = sin(dart.angle);
+    let dp2 = (px - dart.pos) / dart.scale;
+    let ly = -dp2.x * sa2 + dp2.y * ca2;
+    let shade = 0.7 + 0.3 * (1.0 - abs(ly) / 5.0);
+    col *= shade;
+  } else if (mat < 2.5) {
+    col = vec3f(1.0, 0.55, 0.15);
+  } else {
+    col = vec3f(0.85, 0.35, 0.02);
+  }
+
+  let a = aa * dart.color.a;
+  return vec4f(col * a, a);
+}
+
+fn render_crack(px: vec2f, crack: Crack) -> vec4f {
+  let d = px - crack.pos;
+  let dist = length(d);
+  let max_r = (100.0 + crack.seed * 0.5) * (dg.resolution.x / 1512.0);
+  if (dist > max_r) { return vec4f(0.0); }
+  let angle = atan2(d.y, d.x);
+
+  var crack_val: f32 = 0.0;
+  let n_lines = 8u + u32(crack.seed * 0.04) % 5u;
+  for (var i = 0u; i < 13u; i++) {
+    if (i >= n_lines) { break; }
+    let ca = hash11(f32(i) + crack.seed * 7.3) * 6.2832;
+    let ad = abs(angle - ca);
+    let ad2 = min(ad, 6.2832 - ad);
+    let w = 1.2 + hash11(f32(i) + crack.seed * 3.1) * 0.8;
+    crack_val = max(crack_val, smoothstep(w, 0.0, ad2 * dist));
+
+    let bca = ca + (hash11(f32(i) + crack.seed * 11.0) - 0.5) * 1.2;
+    let b_start = max_r * 0.25 + hash11(f32(i) + crack.seed * 5.0) * max_r * 0.3;
+    if (dist > b_start) {
+      let bad = abs(angle - bca);
+      let bad2 = min(bad, 6.2832 - bad);
+      crack_val = max(crack_val, smoothstep(0.8, 0.0, bad2 * dist) * 0.7);
+    }
+  }
+
+  let ring_sp = 18.0 + hash11(crack.seed * 2.7) * 12.0;
+  let rv = abs(fract(dist / ring_sp) * ring_sp - ring_sp * 0.5);
+  crack_val = max(crack_val, smoothstep(1.2, 0.0, rv) * 0.6);
+
+  let fade = 1.0 - smoothstep(max_r * 0.4, max_r, dist);
+  let t_fade = crack.intensity;
+  let v = crack_val * fade * t_fade;
+  if (v < 0.01) { return vec4f(0.0); }
+
+  let glass = vec3f(0.85, 0.92, 1.0);
+  let a = v * 0.85;
+  return vec4f(glass * a, a);
+}
+
+@fragment fn fs(v: VSOut) -> @location(0) vec4f {
+  let px = v.uv * dg.resolution;
+  var col = vec4f(0.0);
+
+  for (var i = 0; i < ${MAX_CRACKS}; i++) {
+    if (i >= i32(dg.crack_count)) { break; }
+    let c = render_crack(px, cracks[i]);
+    col = col + c * (1.0 - col.a);
+  }
+
+  for (var i = 0; i < ${MAX_DARTS}; i++) {
+    if (i >= i32(dg.dart_count)) { break; }
+    let d = render_dart(px, darts[i]);
+    col = col + d * (1.0 - col.a);
+  }
+
+  return col;
+}
+`;
+
+// =============================================================================
+// MAIN — WebGPU initialization, pipeline creation, simulation setup, frame loop
+// =============================================================================
+async function main() {
+  if (!navigator.gpu) {
+    document.body.innerHTML = '<div class="no-webgpu">WebGPU is not supported in this browser.<br>Try Chrome 113+ or Edge 113+.</div>';
+    return;
+  }
+
+  const adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) {
+    document.body.innerHTML = '<div class="no-webgpu">Could not get a WebGPU adapter.</div>';
+    return;
+  }
+
+  const device = await adapter.requestDevice();
+  const canvas = document.getElementById('shader');
+  const ctx = canvas.getContext('webgpu');
+  const format = navigator.gpu.getPreferredCanvasFormat();
+
+  // premultiplied alpha lets the transparent canvas composite over the desktop background
+  ctx.configure({
+    device,
+    format,
+    alphaMode: 'premultiplied',
+  });
+
+  // --- GPU buffers for the main effect pipeline ---
+  // Globals: 64 bytes uniform (matches Globals struct in SHARED_WGSL)
+  // Widgets: MAX_WIDGETS * 32 bytes storage (array of Widget structs)
+  // Wave/Smoke: CPU sim grid uploaded here; water and smoke share this buffer
+  const globalsSize = 64;
+  const widgetStride = 32;
+  const widgetsBufSize = MAX_WIDGETS * widgetStride;
+
+  const globalsBuffer = device.createBuffer({ size: globalsSize, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const widgetsBuffer = device.createBuffer({ size: widgetsBufSize, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+
+  // Water sim runs at body/2 resolution; smoke at body/4 (see stepSmokeSim).
+  // Both upload their data to this same GPU buffer (binding 2). The shader
+  // reads globals.sim_size to know the grid dimensions.
+  const bodyRect0 = document.body.getBoundingClientRect();
+  const simW = Math.ceil(bodyRect0.width / 2);
+  const simH = Math.ceil(bodyRect0.height / 2);
+  let waveA = new Float32Array(simW * simH);
+  let waveB = new Float32Array(simW * simH);
+  const waveBufSize = simW * simH * 4;
+  const waveBuffer = device.createBuffer({ size: Math.max(waveBufSize, 4), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+
+  // Bind group layout for the main effect pipeline.
+  // binding 0: Globals uniform (all shaders use this)
+  // binding 1: Widget array storage (all shaders use this)
+  // binding 2: Sim data storage (water/smoke read this; goo ignores it)
+  const bindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      { binding: 0, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
+      { binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+      { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+    ],
+  });
+
+  const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
+
+  const bindGroup = device.createBindGroup({
+    layout: bindGroupLayout,
+    entries: [
+      { binding: 0, resource: { buffer: globalsBuffer } },
+      { binding: 1, resource: { buffer: widgetsBuffer } },
+      { binding: 2, resource: { buffer: waveBuffer } },
+    ],
+  });
+
+  // All three effect shaders share the same vertex shader (full-screen quad)
+  // and blend mode (premultiplied alpha over). Only the fragment shader differs.
+  function makePipeline(wgsl) {
+    const module = device.createShaderModule({ code: wgsl });
+    return device.createRenderPipeline({
+      layout: pipelineLayout,
+      vertex: { module, entryPoint: 'vs' },
+      fragment: {
+        module,
+        entryPoint: 'fs',
+        targets: [{
+          format,
+          blend: {
+            color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+            alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+          },
+        }],
+      },
+      primitive: { topology: 'triangle-strip' },
+    });
+  }
+
+  const pipelines = {
+    goo: makePipeline(GOO_WGSL),
+    water: makePipeline(WATER_WGSL),
+    smoke: makePipeline(SMOKE_WGSL),
+  };
+
+  // --- Dart + Crack overlay pipeline ---
+  // Separate pipeline rendered as a second pass (loadOp: 'load') on top of the
+  // effect layer. Has its own bind group with dart/crack-specific uniforms and
+  // storage buffers. Active darts and cracks are tracked in JS arrays, updated
+  // with physics each frame, and uploaded to these buffers.
+  const dartGlobalsSize = 32;
+  const dartStride = 32;
+  const crackStride = 32;
+  const dartGlobalsBuffer = device.createBuffer({ size: dartGlobalsSize, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const dartBuffer = device.createBuffer({ size: MAX_DARTS * dartStride, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  const crackBuffer = device.createBuffer({ size: MAX_CRACKS * crackStride, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+
+  const dartBGL = device.createBindGroupLayout({
+    entries: [
+      { binding: 0, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
+      { binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+      { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+    ],
+  });
+
+  const dartPipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [dartBGL] });
+  const dartModule = device.createShaderModule({ code: DART_CRACK_WGSL });
+  const dartPipeline = device.createRenderPipeline({
+    layout: dartPipelineLayout,
+    vertex: { module: dartModule, entryPoint: 'vs' },
+    fragment: {
+      module: dartModule,
+      entryPoint: 'fs',
+      targets: [{
+        format,
+        blend: {
+          color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+          alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+        },
+      }],
+    },
+    primitive: { topology: 'triangle-strip' },
+  });
+
+  const dartBindGroup = device.createBindGroup({
+    layout: dartBGL,
+    entries: [
+      { binding: 0, resource: { buffer: dartGlobalsBuffer } },
+      { binding: 1, resource: { buffer: dartBuffer } },
+      { binding: 2, resource: { buffer: crackBuffer } },
+    ],
+  });
+
+  const activeDarts = [];
+  const activeCracks = [];
+
+  let currentEffect = 'goo';
+
+  // --- Generic drag + snap system ---
+  // Any widget can be made draggable via makeDraggable(el, handle, callbacks).
+  // Dragging uses pointer events on the handle element. When released near a
+  // screen edge (within SNAP_THRESHOLD), the widget snaps flush to that edge
+  // using CSS-native positioning (left:0 / right:0 / top:0 / bottom:0) so it
+  // works regardless of widget size. The 'snapped' CSS class enables smooth
+  // transition animation only on pointerup (not during live drag).
+  const SNAP_THRESHOLD = 50;
+
+  function getBodySize() {
+    const r = document.body.getBoundingClientRect();
+    return { w: r.width, h: r.height };
+  }
+
+  function detectSnap(cx, cy) {
+    const { w: bw, h: bh } = getBodySize();
+    const nearL = cx < SNAP_THRESHOLD;
+    const nearR = cx > bw - SNAP_THRESHOLD;
+    const nearT = cy < SNAP_THRESHOLD;
+    const nearB = cy > bh - SNAP_THRESHOLD;
+    if (nearT && nearL) return 'top-left';
+    if (nearT && nearR) return 'top-right';
+    if (nearB && nearR) return 'bottom-right';
+    if (nearB && nearL) return 'bottom-left';
+    if (nearT) return 'top';
+    if (nearB) return 'bottom';
+    if (nearL) return 'left';
+    if (nearR) return 'right';
+    return null;
+  }
+
+  // Makes a widget draggable by its handle element. Returns { state, position, reposition }.
+  // Callbacks: onClick() — fired on click (no drag); clamp(snap, cx, cy) — constrain position
+  // during snap; onMove() — called every pointermove for layout updates.
+  function makeDraggable(el, handle, cbs) {
+    cbs = cbs || {};
+    const st = { x: 0, y: 0, snapped: null, dragging: false };
+    let ox = 0, oy = 0, didDrag = false;
+
+    function position(snap, cx, cy) {
+      const s = el.style;
+      s.left = ''; s.right = ''; s.top = ''; s.bottom = '';
+      const hx = handle.offsetLeft + handle.offsetWidth / 2;
+      const hy = handle.offsetTop + handle.offsetHeight / 2;
+      if (!snap) {
+        s.left = (cx - hx) + 'px';
+        s.top = (cy - hy) + 'px';
+      } else {
+        if (snap.includes('left'))        s.left = '0';
+        else if (snap.includes('right')) s.right = '0';
+        else                             s.left = (cx - hx) + 'px';
+        if (snap === 'top' || snap.startsWith('top'))          s.top = '0';
+        else if (snap === 'bottom' || snap.startsWith('bottom')) s.bottom = '0';
+        else                                                     s.top = (cy - hy) + 'px';
+      }
+      const r = handle.getBoundingClientRect();
+      const br = document.body.getBoundingClientRect();
+      st.x = r.left + r.width / 2 - br.left;
+      st.y = r.top + r.height / 2 - br.top;
+      st.snapped = snap;
+    }
+
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      st.dragging = true;
+      didDrag = false;
+      st.snapped = null;
+      el.classList.remove('snapped');
+      handle.setPointerCapture(e.pointerId);
+      const r = handle.getBoundingClientRect();
+      const br = document.body.getBoundingClientRect();
+      ox = e.clientX - br.left - (r.left + r.width / 2 - br.left);
+      oy = e.clientY - br.top - (r.top + r.height / 2 - br.top);
+    });
+
+    handle.addEventListener('pointermove', (e) => {
+      if (!st.dragging) return;
+      const br = document.body.getBoundingClientRect();
+      let cx = e.clientX - br.left - ox;
+      let cy = e.clientY - br.top - oy;
+      if (!didDrag && (Math.abs(cx - st.x) > 4 || Math.abs(cy - st.y) > 4)) didDrag = true;
+      const snap = detectSnap(cx, cy);
+      if (snap && cbs.clamp) ({ cx, cy } = cbs.clamp(snap, cx, cy));
+      position(snap, cx, cy);
+      if (cbs.onMove) cbs.onMove();
+    });
+
+    handle.addEventListener('pointerup', () => {
+      st.dragging = false;
+      if (!didDrag) { if (cbs.onClick) cbs.onClick(); return; }
+      el.classList.toggle('snapped', !!st.snapped);
+    });
+
+    handle.addEventListener('pointercancel', () => { st.dragging = false; });
+
+    const r0 = handle.getBoundingClientRect();
+    const br0 = document.body.getBoundingClientRect();
+    st.x = r0.left + r0.width / 2 - br0.left;
+    st.y = r0.top + r0.height / 2 - br0.top;
+
+    return {
+      state: st,
+      position,
+      reposition() {
+        if (st.snapped) {
+          position(st.snapped, st.x, st.y);
+          el.classList.toggle('snapped', !!st.snapped);
+        } else {
+          const r = handle.getBoundingClientRect();
+          const br = document.body.getBoundingClientRect();
+          st.x = r.left + r.width / 2 - br.left;
+          st.y = r.top + r.height / 2 - br.top;
+        }
+      },
+    };
+  }
+
+  // --- Team Menu ---
+  // A radial avatar menu: one hub button (icon) that toggles open/closed. When
+  // open, avatar satellites fan out at angles determined by the snap state. The
+  // entire radial-widget is one draggable unit. Avatar spread angles narrow when
+  // snapped to edges/corners to keep satellites on-screen.
+  const widgetEl = document.getElementById('radial-widget');
+  const radialMenu = document.getElementById('radial-menu');
+  const hubBtn = document.getElementById('hub-btn');
+  const radialItems = [...radialMenu.querySelectorAll('.radial-item')];
+  const SPREAD_RADIUS = 96;
+  const AVATAR_RADIUS = 32;
+  let menuOpen = false;
+
+  const satellites = radialItems.map((el) => ({ el, angle: 0 }));
+
+  function computeAngles() {
+    const n = satellites.length;
+    const s = teamDrag.state.snapped;
+    let startAngle, sweep;
+    const EDGE = Math.PI * 0.82;
+    const CORNER = Math.PI * 0.38;
+    if (!s)                        { startAngle = -Math.PI / 2;                sweep = Math.PI * 2; }
+    else if (s === 'top-left')     { startAngle = Math.PI / 4 - CORNER / 2;   sweep = CORNER; }
+    else if (s === 'top-right')    { startAngle = Math.PI * 3/4 - CORNER / 2; sweep = CORNER; }
+    else if (s === 'bottom-right') { startAngle = Math.PI * 5/4 - CORNER / 2; sweep = CORNER; }
+    else if (s === 'bottom-left')  { startAngle = -Math.PI / 4 - CORNER / 2;  sweep = CORNER; }
+    else if (s === 'top')          { startAngle = Math.PI / 2 - EDGE / 2;     sweep = EDGE; }
+    else if (s === 'bottom')       { startAngle = Math.PI * 3/2 - EDGE / 2;   sweep = EDGE; }
+    else if (s === 'left')         { startAngle = -EDGE / 2;                   sweep = EDGE; }
+    else if (s === 'right')        { startAngle = Math.PI - EDGE / 2;         sweep = EDGE; }
+    const full = sweep >= Math.PI * 2 - 0.01;
+    satellites.forEach((sat, i) => {
+      sat.angle = full ? startAngle + (i / n) * sweep : startAngle + (i / (n - 1)) * sweep;
+    });
+  }
+
+  function layoutSatellites() {
+    satellites.forEach((sat) => {
+      const tx = Math.cos(sat.angle) * SPREAD_RADIUS;
+      const ty = Math.sin(sat.angle) * SPREAD_RADIUS;
+      sat.el.style.transform = menuOpen
+        ? `translate(${tx}px, ${ty}px) scale(1)`
+        : 'translate(0, 0) scale(0)';
+    });
+  }
+
+  function toggleMenu() {
+    menuOpen = !menuOpen;
+    radialMenu.classList.toggle('open', menuOpen);
+    hubBtn.setAttribute('aria-expanded', menuOpen ? 'true' : 'false');
+    layoutSatellites();
+  }
+
+  const teamDrag = makeDraggable(widgetEl, hubBtn, {
+    onClick: toggleMenu,
+    clamp(snap, cx, cy) {
+      const { w: bw, h: bh } = getBodySize();
+      const m = SPREAD_RADIUS + AVATAR_RADIUS;
+      if (snap === 'left' || snap === 'right') cy = Math.max(m, Math.min(bh - m, cy));
+      if (snap === 'top' || snap === 'bottom') cx = Math.max(m, Math.min(bw - m, cx));
+      return { cx, cy };
+    },
+    onMove() { computeAngles(); layoutSatellites(); },
+  });
+
+  computeAngles();
+
+  radialItems.forEach((item) => item.addEventListener('click', (e) => e.preventDefault()));
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && menuOpen) toggleMenu();
+  });
+
+  // --- Nerf dart widget ---
+  // A draggable crosshair button. Click fires a nerf dart that:
+  //   1. Flies in from a random off-screen edge toward a random target (0.3-0.45s)
+  //   2. On impact: spawns a procedural glass crack effect at the hit point
+  //   3. Bounces with gravity (900 px/s²), wall/floor collisions, and tumbling
+  //   4. Rests at the floor, then fades out over ~1.5s
+  // All rendering happens in the WebGPU dart/crack overlay pipeline (second pass).
+  // Darts and cracks are stored in activeDarts[] and activeCracks[] arrays.
+  const nerfWidget = document.getElementById('nerf-widget');
+  const nerfBtn = document.getElementById('nerf-btn');
+
+  function fireNerf() {
+    if (activeDarts.length >= MAX_DARTS) return;
+    const { w: bw, h: bh } = getBodySize();
+    const tx = 80 + Math.random() * (bw - 160);
+    const ty = 60 + Math.random() * (bh - 200);
+
+    const edges = [
+      { x: -60, y: Math.random() * bh },
+      { x: bw + 60, y: Math.random() * bh },
+      { x: Math.random() * bw, y: -60 },
+    ];
+    const start = edges[Math.floor(Math.random() * edges.length)];
+
+    activeDarts.push({
+      x: start.x, y: start.y,
+      startX: start.x, startY: start.y,
+      targetX: tx, targetY: ty,
+      vx: 0, vy: 0,
+      angle: Math.atan2(ty - start.y, tx - start.x),
+      angVel: 0,
+      scale: 0.35,
+      alpha: 1,
+      phase: 'flying',
+      flyTime: 0,
+      flyDuration: 0.3 + Math.random() * 0.15,
+      restTime: 0,
+    });
+  }
+
+  function updateDarts(dt) {
+    const gravity = 900;
+    const bounce = 0.35;
+    const { w: bw, h: bh } = getBodySize();
+
+    for (let i = activeDarts.length - 1; i >= 0; i--) {
+      const d = activeDarts[i];
+
+      if (d.phase === 'flying') {
+        d.flyTime += dt;
+        const t = Math.min(d.flyTime / d.flyDuration, 1);
+        const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        d.x = d.startX + (d.targetX - d.startX) * ease;
+        d.y = d.startY + (d.targetY - d.startY) * ease;
+        d.scale = 0.35 + ease * 0.65;
+        d.angle = Math.atan2(d.targetY - d.startY, d.targetX - d.startX);
+
+        if (t >= 1) {
+          d.phase = 'bouncing';
+          const dx = d.targetX - d.startX, dy = d.targetY - d.startY;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          d.vx = (dx / len) * 120 * (0.5 + Math.random() * 0.5);
+          d.vy = (dy / len) * 80 - 200;
+          d.angVel = (Math.random() - 0.5) * 18;
+          d.scale = 1;
+
+          activeCracks.push({
+            x: d.targetX, y: d.targetY,
+            birthTime: performance.now() / 1000,
+            intensity: 1,
+            seed: Math.random() * 200,
+          });
+        }
+      } else if (d.phase === 'bouncing') {
+        d.vy += gravity * dt;
+        d.x += d.vx * dt;
+        d.y += d.vy * dt;
+        d.angle += d.angVel * dt;
+
+        if (d.y > bh - 15) {
+          d.y = bh - 15;
+          d.vy *= -bounce;
+          d.vx *= 0.75;
+          d.angVel *= 0.6;
+          if (Math.abs(d.vy) < 30) {
+            d.phase = 'resting';
+            d.restTime = 0;
+          }
+        }
+        if (d.x < 15) { d.x = 15; d.vx = Math.abs(d.vx) * bounce; }
+        if (d.x > bw - 15) { d.x = bw - 15; d.vx = -Math.abs(d.vx) * bounce; }
+      } else if (d.phase === 'resting') {
+        d.vy += gravity * dt;
+        d.y = Math.min(d.y + d.vy * dt, bh - 15);
+        d.vy *= 0.9;
+        d.angVel *= 0.95;
+        d.angle += d.angVel * dt;
+        d.restTime += dt;
+        d.alpha = Math.max(0, 1 - (d.restTime - 1.5) / 1.5);
+        if (d.alpha <= 0) { activeDarts.splice(i, 1); }
+      }
+    }
+
+    const now = performance.now() / 1000;
+    for (let i = activeCracks.length - 1; i >= 0; i--) {
+      const c = activeCracks[i];
+      const age = now - c.birthTime;
+      c.intensity = Math.max(0, 1 - age / 3.0);
+      if (c.intensity <= 0) { activeCracks.splice(i, 1); }
+    }
+  }
+
+  const nerfDrag = makeDraggable(nerfWidget, nerfBtn, {
+    onClick: fireNerf,
+  });
+
+  // --- Controls ---
+  const viscosityEl = document.getElementById('viscosity');
+  const momentumEl = document.getElementById('momentum');
+  const wobbleEl = document.getElementById('wobble');
+  const colorEl = document.getElementById('effect-color');
+
+  document.getElementById('btn-goo').addEventListener('click', () => setEffect('goo'));
+  document.getElementById('btn-water').addEventListener('click', () => setEffect('water'));
+  document.getElementById('btn-smoke').addEventListener('click', () => setEffect('smoke'));
+
+  function setEffect(name) {
+    currentEffect = name;
+    document.querySelectorAll('.controls-panel button[aria-pressed]').forEach((b) => {
+      b.setAttribute('aria-pressed', b.id === 'btn-' + name ? 'true' : 'false');
+    });
+  }
+
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
+  }
+
+  // --- Resize ---
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const { w, h } = getBodySize();
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    teamDrag.reposition();
+    nerfDrag.reposition();
+    computeAngles();
+    layoutSatellites();
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+
+  // --- Goo widget scanner ---
+  // Any DOM element with [data-goo] is automatically tracked by the shader layer.
+  // Each frame, updateGooWidgets() reads their bounding rects, computes smoothed
+  // velocities (body px/s), and populates the gooWidgets array. These are then
+  // written to the GPU widgets storage buffer with DPR scaling applied.
+  // To add a new widget: just put data-goo on any HTML element. No other wiring needed.
+  const gooEls = [...document.querySelectorAll('[data-goo]')];
+  const gooWidgets = gooEls.map((el) => ({
+    el,
+    x: 0, y: 0,
+    vx: 0, vy: 0,
+    w: 0, h: 0,
+    cornerR: 0,
+    initialized: false,
+  }));
+
+  function updateGooWidgets(dt) {
+    const bodyRect = document.body.getBoundingClientRect();
+    gooWidgets.forEach((gw) => {
+      const rect = gw.el.getBoundingClientRect();
+      const cx = rect.left - bodyRect.left + rect.width / 2;
+      const cy = rect.top - bodyRect.top + rect.height / 2;
+      const w = rect.width;
+      const h = rect.height;
+      const cr = parseFloat(getComputedStyle(gw.el).borderTopLeftRadius) || 0;
+
+      if (!gw.initialized) {
+        gw.x = cx; gw.y = cy;
+        gw.w = w; gw.h = h;
+        gw.cornerR = cr;
+        gw.initialized = true;
+        return;
+      }
+
+      const rawVx = (cx - gw.x) / Math.max(dt, 0.001);
+      const rawVy = (cy - gw.y) / Math.max(dt, 0.001);
+      const mom = parseFloat(momentumEl.value) / 100;
+      const smoothing = 0.15 + (1 - mom) * 0.25;
+      const decay = 0.90 + mom * 0.08;
+      gw.vx += (rawVx - gw.vx) * smoothing;
+      gw.vy += (rawVy - gw.vy) * smoothing;
+      gw.vx *= decay;
+      gw.vy *= decay;
+
+      gw.x = cx; gw.y = cy;
+      gw.w = w; gw.h = h;
+      gw.cornerR = cr;
+    });
+  }
+
+  // --- Water simulation: Hugo Elias 2D wave equation ---
+  // Classic ping-pong wave propagation on a 2D grid (waveA ↔ waveB).
+  // Each cell: next = (left + right + up + down) / 2 - prev, then *= damping.
+  // Energy is injected at widget surfaces (via SDF) proportional to speed.
+  // Ripples propagate naturally, reflect off boundaries, interfere, and decay.
+  // Viscosity controls damping (how long ripples last), momentum controls injection.
+  function stepWaveSim(visibleWidgets, viscosity, momentum) {
+    const { w: bw, h: bh } = getBodySize();
+    const scaleX = simW / bw;
+    const scaleY = simH / bh;
+    const damp = 0.96 + viscosity * 0.035;
+
+    for (let y = 1; y < simH - 1; y++) {
+      for (let x = 1; x < simW - 1; x++) {
+        const i = y * simW + x;
+        waveB[i] = ((waveA[i - 1] + waveA[i + 1] + waveA[i - simW] + waveA[i + simW]) * 0.5 - waveB[i]) * damp;
+      }
+    }
+
+    const injectScale = 0.5 + momentum * 1.5;
+    for (const gw of visibleWidgets) {
+      const speed = Math.sqrt(gw.vx * gw.vx + gw.vy * gw.vy);
+      if (speed < 0.5) continue;
+
+      const cx = gw.x * scaleX;
+      const cy = gw.y * scaleY;
+      const hw = gw.w * 0.5 * scaleX;
+      const hh = gw.h * 0.5 * scaleY;
+      const cr = Math.min(gw.cornerR * scaleX, hw, hh);
+      const inject = Math.min(speed * 0.012 * injectScale, 2.0);
+      const ex = Math.ceil(hw) + 3;
+      const ey = Math.ceil(hh) + 3;
+      const rcx = Math.round(cx);
+      const rcy = Math.round(cy);
+
+      for (let dy = -ey; dy <= ey; dy++) {
+        for (let dx = -ex; dx <= ex; dx++) {
+          const px = rcx + dx, py = rcy + dy;
+          if (px < 1 || px >= simW - 1 || py < 1 || py >= simH - 1) continue;
+          const qx = Math.max(Math.abs(dx) - hw + cr, 0);
+          const qy = Math.max(Math.abs(dy) - hh + cr, 0);
+          const sd = Math.sqrt(qx * qx + qy * qy) - cr;
+          if (sd > -1 && sd < 3) {
+            waveB[py * simW + px] += inject * Math.exp(-sd * sd * 0.5);
+          }
+        }
+      }
+    }
+
+    const tmp = waveA; waveA = waveB; waveB = tmp;
+  }
+
+  // --- Smoke simulation: 2D Navier-Stokes (simplified) ---
+  // Runs at body/4 resolution for performance. Three fields: velocity (sVelX, sVelY)
+  // and density (sDens). Each frame:
+  //   1. Inject velocity + density at moving widget surfaces (SDF-based)
+  //   2. Vorticity confinement: compute curl, apply forces to amplify rotation
+  //   3. Self-advect velocity via semi-Lagrangian method (bilinear interpolation)
+  //   4. Advect density by velocity field
+  //   5. Apply dissipation (velocity and density fade over time)
+  // The density field is uploaded to the GPU wave buffer for the smoke shader.
+  const smokeW = Math.ceil(bodyRect0.width / 4);
+  const smokeH = Math.ceil(bodyRect0.height / 4);
+  const smokeN = smokeW * smokeH;
+  const sVelX = new Float32Array(smokeN);
+  const sVelY = new Float32Array(smokeN);
+  const sDens = new Float32Array(smokeN);
+  const sTmpX = new Float32Array(smokeN);
+  const sTmpY = new Float32Array(smokeN);
+  const sTmpD = new Float32Array(smokeN);
+  const sCurl = new Float32Array(smokeN);
+
+  // Bilinear interpolation for semi-Lagrangian advection (CPU-side)
+  function bilerpF(f, x, y, w, h) {
+    x = Math.max(0.5, Math.min(w - 1.5, x));
+    y = Math.max(0.5, Math.min(h - 1.5, y));
+    const ix = Math.floor(x), iy = Math.floor(y);
+    const s = x - ix, t = y - iy;
+    const j = iy * w + ix;
+    return (f[j] * (1 - s) + f[j + 1] * s) * (1 - t)
+         + (f[j + w] * (1 - s) + f[j + w + 1] * s) * t;
+  }
+
+  // Semi-Lagrangian advection: for each cell, trace back by velocity, sample source
+  function advect(src, vx, vy, dst, w, h, dtS, dissipation) {
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const i = y * w + x;
+        dst[i] = bilerpF(src, x - vx[i] * dtS, y - vy[i] * dtS, w, h) * dissipation;
+      }
+    }
+  }
+
+  function stepSmokeSim(visibleWidgets, viscosity, momentum, dt) {
+    const { w: bw, h: bh } = getBodySize();
+    const scaleX = smokeW / bw;
+    const scaleY = smokeH / bh;
+    const dtS = dt * 40;
+    const velDiss = 0.97 + viscosity * 0.025;
+    const densDiss = 0.96 + viscosity * 0.035;
+    const curlStr = 3.0 + momentum * 12.0;
+
+    // Inject velocity + density at widget surfaces
+    const injectScale = 0.3 + momentum * 1.2;
+    for (const gw of visibleWidgets) {
+      const speed = Math.sqrt(gw.vx * gw.vx + gw.vy * gw.vy);
+      if (speed < 0.5) continue;
+
+      const cx = gw.x * scaleX;
+      const cy = gw.y * scaleY;
+      const hw = gw.w * 0.5 * scaleX;
+      const hh = gw.h * 0.5 * scaleY;
+      const cr = Math.min(gw.cornerR * scaleX, hw, hh);
+      const ex = Math.ceil(hw) + 5;
+      const ey = Math.ceil(hh) + 5;
+      const rcx = Math.round(cx);
+      const rcy = Math.round(cy);
+      const ivx = gw.vx * scaleX * injectScale * 0.06;
+      const ivy = gw.vy * scaleY * injectScale * 0.06;
+      const densInject = Math.min(speed * 0.008 * injectScale, 1.5);
+
+      for (let dy = -ey; dy <= ey; dy++) {
+        for (let dx = -ex; dx <= ex; dx++) {
+          const px = rcx + dx, py = rcy + dy;
+          if (px < 1 || px >= smokeW - 1 || py < 1 || py >= smokeH - 1) continue;
+          const qx = Math.max(Math.abs(dx) - hw + cr, 0);
+          const qy = Math.max(Math.abs(dy) - hh + cr, 0);
+          const sd = Math.sqrt(qx * qx + qy * qy) - cr;
+          if (sd > -1 && sd < 5) {
+            const env = Math.exp(-sd * sd * 0.15);
+            const idx = py * smokeW + px;
+            sVelX[idx] += ivx * env;
+            sVelY[idx] += ivy * env;
+            sDens[idx] += densInject * env;
+          }
+        }
+      }
+    }
+
+    // Vorticity confinement
+    for (let y = 1; y < smokeH - 1; y++) {
+      for (let x = 1; x < smokeW - 1; x++) {
+        const i = y * smokeW + x;
+        sCurl[i] = (sVelY[i + 1] - sVelY[i - 1]) * 0.5 - (sVelX[i + smokeW] - sVelX[i - smokeW]) * 0.5;
+      }
+    }
+    for (let y = 2; y < smokeH - 2; y++) {
+      for (let x = 2; x < smokeW - 2; x++) {
+        const i = y * smokeW + x;
+        const dcdx = (Math.abs(sCurl[i + 1]) - Math.abs(sCurl[i - 1])) * 0.5;
+        const dcdy = (Math.abs(sCurl[i + smokeW]) - Math.abs(sCurl[i - smokeW])) * 0.5;
+        const len = Math.sqrt(dcdx * dcdx + dcdy * dcdy) + 1e-5;
+        sVelX[i] += (dcdy / len) * sCurl[i] * curlStr * dt;
+        sVelY[i] -= (dcdx / len) * sCurl[i] * curlStr * dt;
+      }
+    }
+
+    // Advect velocity (self-advection)
+    advect(sVelX, sVelX, sVelY, sTmpX, smokeW, smokeH, dtS, velDiss);
+    advect(sVelY, sVelX, sVelY, sTmpY, smokeW, smokeH, dtS, velDiss);
+    sVelX.set(sTmpX); sVelY.set(sTmpY);
+
+    // Advect density
+    advect(sDens, sVelX, sVelY, sTmpD, smokeW, smokeH, dtS, densDiss);
+    sDens.set(sTmpD);
+  }
+
+  // --- Frame loop ---
+  // Runs every frame via requestAnimationFrame. Order of operations:
+  //   1. Read slider values and compute dt
+  //   2. updateGooWidgets() — scan DOM rects, compute velocities
+  //   3. Run active simulation (water or smoke) and upload to GPU
+  //   4. Write globals + widget data to GPU buffers
+  //   5. Update dart physics and write dart/crack data to GPU
+  //   6. Render pass 1: active effect (goo/water/smoke) — clear canvas
+  //   7. Render pass 2: dart/crack overlay (if any active) — load + composite
+  let lastTime = performance.now() / 1000;
+
+  function frame() {
+    const now = performance.now() / 1000;
+    const dt = Math.min(now - lastTime, 0.05);
+    lastTime = now;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const viscosity = parseFloat(viscosityEl.value) / 100;
+    const momentum = parseFloat(momentumEl.value) / 100;
+    const wobbleAmt = parseFloat(wobbleEl.value) / 100;
+    const rgb = hexToRgb(colorEl.value);
+
+    updateGooWidgets(dt);
+
+    const visible = gooWidgets.filter((gw) => Math.max(gw.w, gw.h) > 4);
+
+    let activeSW = simW, activeSH = simH;
+    if (currentEffect === 'water') {
+      stepWaveSim(visible, viscosity, momentum);
+      device.queue.writeBuffer(waveBuffer, 0, waveA);
+    } else if (currentEffect === 'smoke') {
+      stepSmokeSim(visible, viscosity, momentum, dt);
+      device.queue.writeBuffer(waveBuffer, 0, sDens.buffer, 0, smokeN * 4);
+      activeSW = smokeW;
+      activeSH = smokeH;
+    }
+
+    const globalsData = new ArrayBuffer(globalsSize);
+    const gv = new DataView(globalsData);
+    gv.setFloat32(0, canvas.width, true);
+    gv.setFloat32(4, canvas.height, true);
+    gv.setFloat32(8, now, true);
+    gv.setFloat32(12, dt, true);
+    gv.setFloat32(16, rgb[0], true);
+    gv.setFloat32(20, rgb[1], true);
+    gv.setFloat32(24, rgb[2], true);
+    gv.setFloat32(28, 1.0, true);
+    gv.setFloat32(32, viscosity, true);
+    gv.setFloat32(36, momentum, true);
+    gv.setFloat32(40, visible.length, true);
+    gv.setFloat32(44, wobbleAmt, true);
+    gv.setFloat32(48, activeSW, true);
+    gv.setFloat32(52, activeSH, true);
+    device.queue.writeBuffer(globalsBuffer, 0, globalsData);
+
+    const widgetsData = new ArrayBuffer(widgetsBufSize);
+    const wv = new DataView(widgetsData);
+    visible.forEach((gw, i) => {
+      const off = i * widgetStride;
+      wv.setFloat32(off + 0, gw.x * dpr, true);
+      wv.setFloat32(off + 4, gw.y * dpr, true);
+      wv.setFloat32(off + 8, gw.vx, true);
+      wv.setFloat32(off + 12, gw.vy, true);
+      wv.setFloat32(off + 16, gw.w * dpr, true);
+      wv.setFloat32(off + 20, gw.h * dpr, true);
+      wv.setFloat32(off + 24, gw.cornerR * dpr, true);
+      wv.setFloat32(off + 28, 0, true);
+    });
+    device.queue.writeBuffer(widgetsBuffer, 0, widgetsData);
+
+    // --- Update and upload dart/crack data ---
+    updateDarts(dt);
+
+    const dartCount = Math.min(activeDarts.length, MAX_DARTS);
+    const crackCount = Math.min(activeCracks.length, MAX_CRACKS);
+
+    const dgData = new ArrayBuffer(dartGlobalsSize);
+    const dgv = new DataView(dgData);
+    dgv.setFloat32(0, canvas.width, true);
+    dgv.setFloat32(4, canvas.height, true);
+    dgv.setFloat32(8, now, true);
+    dgv.setFloat32(12, dartCount, true);
+    dgv.setFloat32(16, crackCount, true);
+    device.queue.writeBuffer(dartGlobalsBuffer, 0, dgData);
+
+    if (dartCount > 0) {
+      const dBuf = new ArrayBuffer(MAX_DARTS * dartStride);
+      const ddv = new DataView(dBuf);
+      for (let i = 0; i < dartCount; i++) {
+        const d = activeDarts[i];
+        const off = i * dartStride;
+        ddv.setFloat32(off + 0, d.x * dpr, true);
+        ddv.setFloat32(off + 4, d.y * dpr, true);
+        ddv.setFloat32(off + 8, d.angle, true);
+        ddv.setFloat32(off + 12, d.scale * dpr, true);
+        ddv.setFloat32(off + 16, 1.0, true);
+        ddv.setFloat32(off + 20, 0.45, true);
+        ddv.setFloat32(off + 24, 0.05, true);
+        ddv.setFloat32(off + 28, d.alpha, true);
+      }
+      device.queue.writeBuffer(dartBuffer, 0, dBuf);
+    }
+
+    if (crackCount > 0) {
+      const cBuf = new ArrayBuffer(MAX_CRACKS * crackStride);
+      const cdv = new DataView(cBuf);
+      for (let i = 0; i < crackCount; i++) {
+        const c = activeCracks[i];
+        const off = i * crackStride;
+        cdv.setFloat32(off + 0, c.x * dpr, true);
+        cdv.setFloat32(off + 4, c.y * dpr, true);
+        cdv.setFloat32(off + 8, now - c.birthTime, true);
+        cdv.setFloat32(off + 12, c.intensity, true);
+        cdv.setFloat32(off + 16, c.seed, true);
+      }
+      device.queue.writeBuffer(crackBuffer, 0, cBuf);
+    }
+
+    // --- Render ---
+    const commandEncoder = device.createCommandEncoder();
+    const textureView = ctx.getCurrentTexture().createView();
+
+    const pass = commandEncoder.beginRenderPass({
+      colorAttachments: [{
+        view: textureView,
+        clearValue: { r: 0, g: 0, b: 0, a: 0 },
+        loadOp: 'clear',
+        storeOp: 'store',
+      }],
+    });
+    pass.setPipeline(pipelines[currentEffect]);
+    pass.setBindGroup(0, bindGroup);
+    pass.draw(4);
+    pass.end();
+
+    if (dartCount > 0 || crackCount > 0) {
+      const pass2 = commandEncoder.beginRenderPass({
+        colorAttachments: [{
+          view: textureView,
+          loadOp: 'load',
+          storeOp: 'store',
+        }],
+      });
+      pass2.setPipeline(dartPipeline);
+      pass2.setBindGroup(0, dartBindGroup);
+      pass2.draw(4);
+      pass2.end();
+    }
+
+    device.queue.submit([commandEncoder.finish()]);
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+}
+
+main();
+  </script>
+</body>
+</html>
