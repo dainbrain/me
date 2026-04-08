@@ -6,6 +6,7 @@
   <meta name="description" content="WebGPU shader overlay with draggable widgets and switchable effects (goo, water, smoke).">
   <title>WebGPU shader overlay</title>
   <link rel="stylesheet" href="quest-log.css">
+  <link rel="stylesheet" href="chat-channel.css">
   <style>
     :root {
       --background-color: #0E0C0A;
@@ -897,43 +898,65 @@ fn smin(a: f32, b: f32, k: f32) -> f32 {
 
 // =============================================================================
 // WATER SHADER — Reads from a CPU-computed wave height field (binding 2).
-// The wave sim runs the Hugo Elias 2D wave equation on CPU (see stepWaveSim).
-// This shader samples the height field, computes surface normals via finite
-// differences, and applies Blinn-Phong lighting with a specular highlight.
-// Completely transparent at rest (early-out when energy < threshold).
+// Renders caustic-like light patterns on a transparent overlay. Inspired by
+// gentlerain.ai (Fresnel + tilt lighting) and Shadertoy wdtyDH (gradient-based
+// wave rendering). Uses central-difference normals, Laplacian-based caustics,
+// Fresnel reflectivity, and dual specular highlights. Strictly additive — no
+// dark shadows. Completely transparent at rest.
 // =============================================================================
 const WATER_WGSL = SHARED_WGSL + `
-// Wave height field uploaded from CPU each frame (simW * simH floats)
 @group(0) @binding(2) var<storage, read> wave: array<f32>;
+
+fn sampleH(x: i32, y: i32, sw: i32, sh: i32) -> f32 {
+  return wave[clamp(y, 0, sh - 1) * sw + clamp(x, 0, sw - 1)];
+}
 
 @fragment fn fs(v: VSOut) -> @location(0) vec4f {
   let sw = i32(globals.sim_size.x);
   let sh = i32(globals.sim_size.y);
   if (sw < 2 || sh < 2) { return vec4f(0.0); }
 
-  let sx = clamp(i32(v.uv.x * globals.sim_size.x), 0, sw - 1);
-  let sy = clamp(i32(v.uv.y * globals.sim_size.y), 0, sh - 1);
+  let sx = clamp(i32(v.uv.x * f32(sw)), 1, sw - 2);
+  let sy = clamp(i32(v.uv.y * f32(sh)), 1, sh - 2);
 
-  let h   = wave[sy * sw + sx];
-  let h_r = wave[sy * sw + min(sx + 1, sw - 1)];
-  let h_u = wave[max(sy - 1, 0) * sw + sx];
+  let h  = sampleH(sx, sy, sw, sh);
+  let hR = sampleH(sx + 1, sy, sw, sh);
+  let hL = sampleH(sx - 1, sy, sw, sh);
+  let hU = sampleH(sx, sy - 1, sw, sh);
+  let hD = sampleH(sx, sy + 1, sw, sh);
 
-  let gx = h_r - h;
-  let gy = h_u - h;
-  let energy = abs(h) + length(vec2f(gx, gy)) * 8.0;
-  if (energy < 0.001) { return vec4f(0.0); }
+  let gx = (hR - hL) * 0.5;
+  let gy = (hD - hU) * 0.5;
+  let gradLen = length(vec2f(gx, gy));
+  let energy = abs(h) + gradLen * 6.0;
+  if (energy < 0.0005) { return vec4f(0.0); }
 
-  let normal = normalize(vec3f(-gx * 60.0, -gy * 60.0, 1.0));
-  let light = normalize(vec3f(1.0, -1.0, 0.7));
-  let half_v = normalize(light + vec3f(0.0, 0.0, 1.0));
-  let spec = pow(max(dot(normal, half_v), 0.0), 60.0);
-  let diff = dot(normal, light) * 0.5 + 0.5;
+  let normal = normalize(vec3f(-gx * 18.0, -gy * 18.0, 1.0));
+
+  let laplacian = hL + hR + hU + hD - 4.0 * h;
+  var caustic = max(0.0, -laplacian) * 12.0;
+  caustic = caustic * caustic;
+
+  let nDotV = normal.z;
+  let fresnel = 0.04 + 0.96 * pow(1.0 - nDotV, 5.0);
+
+  let viewDir = vec3f(0.0, 0.0, 1.0);
+  let l1 = normalize(vec3f(0.7, -0.5, 1.2));
+  let h1 = normalize(l1 + viewDir);
+  let spec1 = pow(max(dot(normal, h1), 0.0), 128.0);
+
+  let l2 = normalize(vec3f(-0.4, 0.7, 1.0));
+  let h2 = normalize(l2 + viewDir);
+  let spec2 = pow(max(dot(normal, h2), 0.0), 64.0);
 
   let c = globals.color.rgb;
-  let tint = c * 0.2 * (diff * 2.0 - 1.0);
-  let specular = vec3f(1.0) * spec;
-  let color_out = max(tint + specular, vec3f(0.0));
-  let alpha = clamp(energy * 5.0, 0.0, 0.6);
+
+  let tint = c * 0.05 * fresnel;
+  let specular = vec3f(1.0) * (spec1 * 0.6 + spec2 * 0.25);
+  let causticColor = mix(vec3f(1.0), c, 0.2) * caustic * 0.15;
+  let color_out = tint + specular + causticColor;
+
+  let alpha = clamp(energy * 2.0 + caustic * 0.08, 0.0, 0.35);
 
   return vec4f(color_out * alpha, alpha);
 }
@@ -1417,11 +1440,13 @@ async function main() {
   // Water sim runs at body/2 resolution; smoke at body/4 (see stepSmokeSim).
   // Both upload their data to this same GPU buffer (binding 2). The shader
   // reads globals.sim_size to know the grid dimensions.
+  // Velocity-based wave equation (pressure + pVel) inspired by Shadertoy wdtyDH.
   const bodyRect0 = document.body.getBoundingClientRect();
   const simW = Math.ceil(bodyRect0.width / 2);
   const simH = Math.ceil(bodyRect0.height / 2);
-  let waveA = new Float32Array(simW * simH);
-  let waveB = new Float32Array(simW * simH);
+  let waveH   = new Float32Array(simW * simH);
+  let waveVel = new Float32Array(simW * simH);
+  let waveA = waveH;
   const waveBufSize = simW * simH * 4;
   const waveBuffer = device.createBuffer({ size: Math.max(waveBufSize, 4), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
 
@@ -2505,22 +2530,36 @@ async function main() {
     });
   }
 
-  // --- Water simulation: Hugo Elias 2D wave equation ---
-  // Classic ping-pong wave propagation on a 2D grid (waveA ↔ waveB).
-  // Each cell: next = (left + right + up + down) / 2 - prev, then *= damping.
-  // Energy is injected at widget surfaces (via SDF) proportional to speed.
-  // Ripples propagate naturally, reflect off boundaries, interfere, and decay.
-  // Viscosity controls damping (how long ripples last), momentum controls injection.
+  // --- Water simulation: velocity-based 2D wave equation ---
+  // Inspired by Shadertoy wdtyDH. Each cell stores height (waveH) and velocity
+  // (waveVel). The Laplacian drives acceleration; a spring restoring force pulls
+  // the surface back to rest; separate velocity and pressure damping ensure
+  // natural decay. Produces rounder, more water-like ripples than Hugo Elias.
   function stepWaveSim(visibleWidgets, viscosity, momentum) {
     const { w: bw, h: bh } = getBodySize();
     const scaleX = simW / bw;
     const scaleY = simH / bh;
-    const damp = 0.96 + viscosity * 0.035;
+    const velDamp  = 1.0 - 0.004 * (1.0 - viscosity * 0.5);
+    const presDamp = 0.999;
+    const spring   = 0.005;
 
     for (let y = 1; y < simH - 1; y++) {
       for (let x = 1; x < simW - 1; x++) {
         const i = y * simW + x;
-        waveB[i] = ((waveA[i - 1] + waveA[i + 1] + waveA[i - simW] + waveA[i + simW]) * 0.5 - waveB[i]) * damp;
+        const p  = waveH[i];
+        const pR = waveH[i + 1];
+        const pL = waveH[i - 1];
+        const pU = waveH[i - simW];
+        const pD = waveH[i + simW];
+
+        let pv = waveVel[i];
+        pv += (-2.0 * p + pR + pL) * 0.25;
+        pv += (-2.0 * p + pU + pD) * 0.25;
+        pv -= spring * p;
+        pv *= velDamp;
+
+        waveH[i]   = (p + pv) * presDamp;
+        waveVel[i] = pv;
       }
     }
 
@@ -2548,13 +2587,13 @@ async function main() {
           const qy = Math.max(Math.abs(dy) - hh + cr, 0);
           const sd = Math.sqrt(qx * qx + qy * qy) - cr;
           if (sd > -1 && sd < 3) {
-            waveB[py * simW + px] += inject * Math.exp(-sd * sd * 0.5);
+            waveH[py * simW + px] += inject * Math.exp(-sd * sd * 0.5);
           }
         }
       }
     }
 
-    const tmp = waveA; waveA = waveB; waveB = tmp;
+    waveA = waveH;
   }
 
   // --- Smoke simulation: 2D Navier-Stokes (simplified) ---
@@ -2914,5 +2953,6 @@ async function main() {
 main();
   </script>
   <script src="quest-log.js" defer></script>
+  <script src="chat-channel.js" defer></script>
 </body>
 </html>

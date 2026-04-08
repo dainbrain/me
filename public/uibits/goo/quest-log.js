@@ -293,12 +293,19 @@
       addRowVisible = false;
       addRow.style.display = 'none';
     }
+    if (panelOpen) positionPanel();
     syncHubContextMenuChecks();
     renderQuestPanel();
   }
 
   /* ─── Panel position relative to hub ────────────────────────────────────── */
   function positionPanel() {
+    if (displayMode === 'frameless') {
+      panel.style.left = '-256px';
+      panel.style.right = '';
+      panel.style.top = '50px';
+      return;
+    }
     // Panel appears to the right of the hub by default;
     // flips left if there isn't enough room.
     // Always use `left` (positive = right side, negative = left side)
@@ -338,12 +345,19 @@
   function renderQuestPanel() {
     updateBadge();
 
-    if (displayMode === 'minimal' || displayMode === 'frameless') {
-      renderMiniPanel(displayMode === 'frameless');
+    if (displayMode === 'minimal') {
+      renderMiniPanel();
+      return;
+    }
+
+    if (displayMode === 'frameless') {
+      renderFramelessPanel();
       return;
     }
 
     const items = getFilteredItems();
+
+    questBody.innerHTML = '';
 
     if (items.length === 0) {
       questBody.innerHTML = `<div class="quest-empty">${
@@ -359,7 +373,6 @@
       groups[item.team].push(item);
     });
 
-    questBody.innerHTML = '';
     Object.entries(groups).forEach(([teamName, groupItems]) => {
       const group = document.createElement('div');
       group.className = 'quest-group';
@@ -375,8 +388,32 @@
     });
   }
 
-  function renderMiniPanel(isFrameless) {
-    // Show top 3 active items sorted by priority — no groups, no expand
+  function renderFramelessPanel() {
+    const top = questItems
+      .filter(i => i.status === 'active')
+      .slice(0, 3);
+
+    questBody.innerHTML = '';
+
+    const bar = document.createElement('div');
+    bar.className = 'quest-mini-label';
+    bar.innerHTML = `<span>Next Up</span><button class="quest-mini-add-btn" type="button" aria-label="Add task">+ add new</button>`;
+    bar.querySelector('.quest-mini-add-btn').addEventListener('click', () => {
+      addRowVisible = !addRowVisible;
+      addRow.style.display = addRowVisible ? '' : 'none';
+      if (addRowVisible) addInput.focus();
+    });
+    questBody.appendChild(bar);
+
+    if (top.length === 0) {
+      questBody.insertAdjacentHTML('beforeend', '<div class="quest-empty">All clear</div>');
+      return;
+    }
+
+    top.forEach(item => questBody.appendChild(buildItemEl(item)));
+  }
+
+  function renderMiniPanel() {
     const top = questItems
       .filter(i => i.status === 'active')
       .sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9))
@@ -402,8 +439,8 @@
       row.innerHTML = `
         <span class="quest-gem" aria-hidden="true">◆</span>
         <span class="quest-mini-title">${escHtml(item.title)}</span>
-        ${isFrameless ? '' : (assignee ? `<div class="quest-assignee-avatar" title="${assignee.name}"><img src="https://i.pravatar.cc/60?img=${assignee.img}" alt="${assignee.name}" loading="lazy"></div>` : '')}
-        ${isFrameless ? '' : `<span class="quest-badge quest-badge--${item.source}">${item.source.toUpperCase()}</span>`}
+        ${assignee ? `<div class="quest-assignee-avatar" title="${assignee.name}"><img src="https://i.pravatar.cc/60?img=${assignee.img}" alt="${assignee.name}" loading="lazy"></div>` : ''}
+        <span class="quest-badge quest-badge--${item.source}">${item.source.toUpperCase()}</span>
       `;
       questBody.appendChild(row);
     });
@@ -770,7 +807,7 @@
 
     wireEvents();
     updateBadge();
-    setDisplayMode('full');
+    setDisplayMode('frameless');
     openPanel(); // default open
   }
 
