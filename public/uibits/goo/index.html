@@ -127,14 +127,14 @@
       z-index: 7;
       width: 18px;
       height: 18px;
-      top: 0;
-      right: 0;
+      top: -2px;
+      right: -2px;
       box-sizing: border-box;
       display: flex;
       align-items: center;
       justify-content: center;
       overflow: hidden;
-      font-size: 14px;
+      font-size: 16px;
       line-height: 1;
       pointer-events: none;
       font-family: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif;
@@ -142,9 +142,29 @@
     }
     #radial-widget.avatar-status-left .avatar-status {
       right: auto;
-      left: 0;
+      left: -2px;
     }
 
+    /* PTT button */
+    .avatar-ptt {
+      position: absolute;
+      z-index: 6;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: rgba(0, 0, 0, 0.25);
+      border-radius: 50%;
+    }
+    .avatar-ptt svg {
+      color: var(--highlight-color);
+      width: 20px;
+      height: 20px;
+      filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.5));
+    }
     /* Slack-style card behind avatar (opens on click); screen share docks top-right when open.
        Collapsed: 0×0 (no border/shadow/blur) so nothing shows under translucent avatars. Open: slides
        to below + right of avatar (mirrored on right edge) — ~280px wide. */
@@ -374,20 +394,20 @@
     }
 
     .circle--crosshair {
-      width: 44px;
-      height: 44px;
-      cursor: crosshair;
-      background: var(--control-bg);
-      border-color: var(--control-border);
-      backdrop-filter: blur(10px);
-      transition: transform 150ms ease, border-color 150ms ease;
+      /* Match team/quest hubs (same size + fill/border/icon treatment). */
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      background-color: var(--highlight-color);
+      border-color: var(--highlight-color);
+      color: var(--background-color);
+      transition: transform 200ms ease;
     }
     .circle--crosshair:hover {
-      transform: scale(1.12);
-      border-color: var(--highlight-color);
+      transform: scale(1.08);
     }
-    .circle--crosshair:active { transform: scale(0.92); }
-    .circle--crosshair .icon { stroke: var(--highlight-color); width: 60%; height: 60%; }
+    .circle--crosshair:active { transform: scale(0.96); }
+    .circle--crosshair .icon { stroke: currentColor; width: 75%; height: 75%; }
 
     .radial-menu {
       position: relative;
@@ -608,6 +628,7 @@
           </div>
           <div class="circle circle--avatar" data-goo data-presence="available"><img src="https://i.pravatar.cc/120?img=11" alt="Alex"></div>
           <span class="avatar-status" aria-label="Status" role="img">💬</span>
+          <span class="avatar-ptt"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon icon-tabler icons-tabler-filled icon-tabler-microphone"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M19 9a1 1 0 0 1 1 1a8 8 0 0 1 -6.999 7.938l-.001 2.062h3a1 1 0 0 1 0 2h-8a1 1 0 0 1 0 -2h3v-2.062a8 8 0 0 1 -7 -7.938a1 1 0 1 1 2 0a6 6 0 0 0 12 0a1 1 0 0 1 1 -1m-7 -8a4 4 0 0 1 4 4v5a4 4 0 1 1 -8 0v-5a4 4 0 0 1 4 -4" /></svg></span>
         </a>
         <a class="radial-item" href="#" title="Jordan" data-screen-sharing>
           <div class="avatar-info-card">
@@ -677,7 +698,7 @@
       <button type="button" class="ctx-item" role="menuitem" data-avatar-action="settings">Settings (stub)</button>
     </div>
 
-    <div class="widget" id="nerf-widget" style="left:400px;top:200px">
+    <div class="widget" id="nerf-widget" style="left:50%;top:calc(100% - 150px);transform:translate(-50%, -50%)">
       <div class="circle circle--crosshair circle--hub" id="nerf-btn" data-goo role="button" tabindex="0" aria-label="Fire nerf dart">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon"><circle cx="12" cy="12" r="10"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><circle cx="12" cy="12" r="2"/></svg>
       </div>
@@ -977,47 +998,88 @@ fn sample_field(uv: vec2f) -> f32 {
 `;
 
 // =============================================================================
-// DART & GLASS SHATTER — Second pass over the effect layer.
-// Darts: blue cylinder body + rounded orange tip (SDF). Flight paths spawn from
-// far off-screen at steep “over-the-shoulder” angles toward the impact point.
-// Glass: samples glass_shatter_[1-4].svg from a 2D texture array, masked by a
-// radial gradient (strong at center, fades to edges).
+// DART (true 3D mesh) & GLASS SHATTER (2D crack overlay).
+// Darts: cylinder body + sphere tip, real 3D geometry rendered with perspective
+// projection. Camera sits behind the viewer; darts fly along Z toward screen.
+// Glass: samples glass_shatter_[1-4].svg from a 2D texture array (unchanged).
 // =============================================================================
-const MAX_DARTS = 8;
-const MAX_CRACKS = 8;
+const MAX_DARTS = 200;
+const MAX_CRACKS = 200;
 
-const DART_CRACK_WGSL = `
-struct DartGlobals {
+const DART_3D_WGSL = `
+struct Camera {
+  viewProj: mat4x4f,
+};
+struct Instance {
+  model: mat4x4f,
+  color: vec4f,
+};
+
+@group(0) @binding(0) var<uniform> cam: Camera;
+@group(0) @binding(1) var<storage, read> instances: array<Instance, ${MAX_DARTS}>;
+
+struct VIn {
+  @location(0) pos: vec3f,
+  @location(1) normal: vec3f,
+  @location(2) matId: f32,
+};
+
+struct VOut {
+  @builtin(position) pos: vec4f,
+  @location(0) wNorm: vec3f,
+  @location(1) matId: f32,
+  @location(2) alpha: f32,
+};
+
+@vertex fn vs(v: VIn, @builtin(instance_index) ii: u32) -> VOut {
+  let inst = instances[ii];
+  let wp = inst.model * vec4f(v.pos, 1.0);
+  let wn = normalize((inst.model * vec4f(v.normal, 0.0)).xyz);
+  var o: VOut;
+  o.pos = cam.viewProj * wp;
+  o.wNorm = wn;
+  o.matId = v.matId;
+  o.alpha = inst.color.a;
+  return o;
+}
+
+@fragment fn fs(v: VOut) -> @location(0) vec4f {
+  let n = normalize(v.wNorm);
+  let light = normalize(vec3f(0.3, -0.5, -0.8));
+  let diff = 0.45 + 0.55 * max(dot(n, -light), 0.0);
+  let h = normalize(-light + vec3f(0.0, 0.0, -1.0));
+  let spec = pow(max(dot(n, h), 0.0), 32.0) * 0.35;
+
+  var base: vec3f;
+  if (v.matId < 0.5) {
+    base = vec3f(0.10, 0.38, 0.92);
+  } else {
+    base = vec3f(1.0, 0.42, 0.08);
+  }
+  let col = base * diff + vec3f(1.0) * spec;
+  let a = v.alpha;
+  return vec4f(col * a, a);
+}
+`;
+
+// 2D fullscreen procedural glass crack pass (Voronoi edges + radial lines)
+const CRACK_2D_WGSL = `
+struct CrackGlobals {
   resolution: vec2f,
   time: f32,
-  dart_count: f32,
   crack_count: f32,
-  _p1: f32, _p2: f32, _p3: f32,
 };
-
-struct Dart {
-  pos: vec2f,
-  angle: f32,
-  scale: f32,
-  alpha: f32,
-  _p1: f32, _p2: f32, _p3: f32,
-};
-
 struct Crack {
   pos: vec2f,
   age: f32,
   intensity: f32,
   seed: f32,
-  shatter_layer: f32,
-  _p1: f32,
-  _p2: f32,
+  growth: f32,
+  _p1: f32, _p2: f32,
 };
 
-@group(0) @binding(0) var<uniform> dg: DartGlobals;
-@group(0) @binding(1) var<storage, read> darts: array<Dart, ${MAX_DARTS}>;
-@group(0) @binding(2) var<storage, read> cracks: array<Crack, ${MAX_CRACKS}>;
-@group(0) @binding(3) var shatter_tex: texture_2d_array<f32>;
-@group(0) @binding(4) var shatter_samp: sampler;
+@group(0) @binding(0) var<uniform> cg: CrackGlobals;
+@group(0) @binding(1) var<storage, read> cracks: array<Crack, ${MAX_CRACKS}>;
 
 struct VSOut { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
 
@@ -1030,143 +1092,284 @@ struct VSOut { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
   return o;
 }
 
-fn hash11(p: f32) -> f32 { return fract(sin(p * 127.1) * 43758.5453); }
+fn hash2(p: vec2f) -> vec2f {
+  return fract(sin(vec2f(dot(p, vec2f(127.1, 311.7)), dot(p, vec2f(269.5, 183.3)))) * 43758.5453);
+}
 
-fn render_dart(px: vec2f, dart: Dart) -> vec4f {
-  let dd = abs(px - dart.pos);
-  let mx = dart.scale * 80.0;
-  if (dd.x > mx || dd.y > mx) { return vec4f(0.0); }
+fn hash1(p: f32) -> f32 { return fract(sin(p * 127.1) * 43758.5453); }
 
-  let ca = cos(dart.angle);
-  let sa = sin(dart.angle);
-  let dp = (px - dart.pos) / dart.scale;
-  let lp = vec2f(dp.x * ca + dp.y * sa, -dp.x * sa + dp.y * ca);
-
-  let body_hl = 48.0;
-  let body_r = 10.0;
-  let bx = lp.x - clamp(lp.x, -body_hl, body_hl);
-  let body = length(vec2f(bx, lp.y)) - body_r;
-
-  let tip_r = 15.0;
-  let tip_cx = body_hl + tip_r * 0.85;
-  let tip = length(lp - vec2f(tip_cx, 0.0)) - tip_r;
-
-  let d = min(body, tip);
-  if (d > 1.5) { return vec4f(0.0); }
-  let aa = 1.0 - smoothstep(-1.0, 1.0, d);
-
-  var col: vec3f;
-  if (body < tip) {
-    let shade = 0.52 + 0.48 * smoothstep(-body_r, body_r, lp.y);
-    let edge = 0.88 + 0.12 * (1.0 - abs(lp.y) / body_r);
-    col = vec3f(0.1, 0.38, 0.92) * shade * edge;
-  } else {
-    let tc = lp - vec2f(tip_cx, 0.0);
-    let hi = 1.0 - smoothstep(0.0, tip_r, length(tc));
-    col = mix(vec3f(1.0, 0.38, 0.06), vec3f(1.0, 0.72, 0.28), hi * 0.55);
+fn voronoi_crack(p: vec2f, seed: f32, thickness: f32) -> f32 {
+  let cell = floor(p);
+  var d1 = 1e5;
+  var d2 = 1e5;
+  for (var y = -1; y <= 1; y++) {
+    for (var x = -1; x <= 1; x++) {
+      let neighbor = cell + vec2f(f32(x), f32(y));
+      let pt = neighbor + hash2(neighbor + seed);
+      let dd = dot(p - pt, p - pt);
+      if (dd < d1) { d2 = d1; d1 = dd; }
+      else if (dd < d2) { d2 = dd; }
+    }
   }
+  return smoothstep(0.0, thickness, sqrt(d2) - sqrt(d1));
+}
 
-  let a = aa * dart.alpha;
-  return vec4f(col * a, a);
+// Shared jagged boundary curve for a radial boundary index.
+// Adjacent sectors sample the same boundary id, so seams match perfectly.
+fn boundary_jitter(boundaryId: i32, r01: f32, seed: f32, stepA: f32) -> f32 {
+  let rid = clamp(r01, 0.0, 1.0) * 10.0;
+  let i0 = floor(rid);
+  let i1 = min(i0 + 1.0, 10.0);
+  let t = rid - i0;
+  let b = f32(boundaryId);
+  let j0 = (hash1(seed + b * 17.73 + i0 * 31.9) - 0.5);
+  let j1 = (hash1(seed + b * 17.73 + i1 * 31.9) - 0.5);
+  let j = mix(j0, j1, t);
+  return j * (stepA * 0.30);
 }
 
 fn render_crack(px: vec2f, crack: Crack) -> vec4f {
   let d = px - crack.pos;
   let dist = length(d);
-  let max_r = 260.0 * (dg.resolution.x / 1512.0);
-  if (dist > max_r) { return vec4f(0.0); }
+  if (dist > crack.growth) { return vec4f(0.0); }
 
-  let layer = i32(clamp(crack.shatter_layer, 0.0, 3.0));
-  let rot = hash11(crack.seed + 7.31) * 6.28318;
-  let ca = cos(rot);
-  let sa = sin(rot);
-  let rd = vec2f(d.x * ca + d.y * sa, -d.x * sa + d.y * ca);
+  let diag = length(cg.resolution);
+  let impactR = 105.0 * (diag / 2000.0);
 
-  let uv = rd / (max_r * 2.0) + vec2f(0.5);
-  let uvcl = clamp(uv, vec2f(0.002), vec2f(0.998));
-  let samp = textureSampleLevel(shatter_tex, shatter_samp, uvcl, layer, 0.0);
+  // --- Polar sector partition ---
+  let tau = 6.2831853;
+  let ang0 = atan2(d.y, d.x);
+  let ang = select(ang0 + tau, ang0, ang0 >= 0.0);
+  let r01 = clamp(dist / max(impactR * 2.2, 1.0), 0.0, 1.0);
 
-  let stroke = max(samp.a, max(samp.r, max(samp.g, samp.b)));
-  if (stroke < 0.01) { return vec4f(0.0); }
+  let sectorCount = 6 + i32(floor(hash1(crack.seed * 2.31) * 3.0)); // 6..8
 
-  let t = dist / max_r;
-  let falloff = 1.0 - smoothstep(0.0, 1.0, t);
-  let a = min(stroke * falloff * crack.intensity, 1.0);
-  if (a < 0.01) { return vec4f(0.0); }
+  // Randomized sector widths (still tile full 360 exactly)
+  var weights: array<f32, 8>;
+  var wsum = 0.0;
+  for (var i = 0; i < 8; i++) {
+    if (i < sectorCount) {
+      let w = 0.75 + hash1(crack.seed + f32(i) * 11.7) * 1.10;
+      weights[i] = w;
+      wsum += w;
+    } else {
+      weights[i] = 0.0;
+    }
+  }
+  let angleScale = tau / max(wsum, 0.0001);
+  var sector = sectorCount - 1;
+  var leftBase = 0.0;
+  var rightBase = tau;
+  var acc = 0.0;
+  for (var i = 0; i < 8; i++) {
+    if (i >= sectorCount) { break; }
+    let segA = weights[i] * angleScale;
+    let next = acc + segA;
+    if (ang >= acc && ang < next) {
+      sector = i;
+      leftBase = acc;
+      rightBase = next;
+      break;
+    }
+    acc = next;
+  }
+  let stepA = rightBase - leftBase;
+  let localA = ang - leftBase;
 
-  let glass = vec3f(0.85, 0.95, 1.0);
+  // Left/right shared boundaries for this sector, both jittered by radius.
+  let bLeft = sector;
+  let bRight = (sector + 1) % sectorCount;
+  let leftA = boundary_jitter(bLeft, r01, crack.seed, stepA);
+  let rightA = stepA + boundary_jitter(bRight, r01, crack.seed, stepA);
+
+  let aaA = 0.010;
+  let inLeft = smoothstep(leftA - aaA, leftA + aaA, localA);
+  let inRight = 1.0 - smoothstep(rightA - aaA, rightA + aaA, localA);
+  let sectorMask = clamp(inLeft * inRight, 0.0, 1.0);
+
+  // Distance to nearest seam in screen-space pixels.
+  let dLeftPx = abs(localA - leftA) * max(dist, 1.0);
+  let dRightPx = abs(rightA - localA) * max(dist, 1.0);
+  let seamDist = min(dLeftPx, dRightPx);
+  let nearestBoundary = select(bRight, bLeft, dLeftPx < dRightPx);
+
+  // --- Center knockout hole (jagged polygon tied to sector seams) ---
+  // Radius values are keyed by boundary ids so adjacent sectors share the same
+  // corner values where seams meet. This keeps the hole contour aligned.
+  let holeBase = impactR * 0.14;
+  let holeVarL = 0.75 + hash1(crack.seed * 3.91 + f32(bLeft) * 5.17) * 0.70;
+  let holeVarR = 0.75 + hash1(crack.seed * 3.91 + f32(bRight) * 5.17) * 0.70;
+  let tA = clamp(localA / max(stepA, 0.0001), 0.0, 1.0);
+  let holeR = mix(holeBase * holeVarL, holeBase * holeVarR, tA);
+  let holeAA = 1.6 * (diag / 2000.0);
+  let holeMask = smoothstep(holeR - holeAA, holeR + holeAA, dist);
+
+  // --- Voronoi interior inside each sector, tight around impact ---
+  let compression = 1.0 + 3.2 * (1.0 - smoothstep(0.0, impactR, dist));
+  let scale = 0.024 * (2000.0 / diag) * compression;
+  let sectorSeed = crack.seed + f32(sector) * 37.17;
+  // Per-sector transform to visually separate each shard pattern.
+  let secRand = hash2(vec2f(sectorSeed * 1.37, sectorSeed * 2.11));
+  let secRot = (secRand.x - 0.5) * 1.20;
+  let cr = cos(secRot);
+  let sr = sin(secRot);
+  let p0 = d * scale;
+  let p1 = vec2f(p0.x * cr - p0.y * sr, p0.x * sr + p0.y * cr);
+  let pLocal = p1 + (secRand - vec2f(0.5)) * 0.95;
+  let secThickness = mix(0.048, 0.078, secRand.y);
+  let edge = voronoi_crack(pLocal, sectorSeed, secThickness);
+  var voroInterior = (1.0 - edge) * sectorMask;
+  let interiorFalloff = 1.0 - smoothstep(impactR * 0.55, impactR * 1.15, dist);
+  voroInterior *= interiorFalloff;
+
+  // --- Seam strokes (new crack lines) ---
+  let seamWidth = 2.0 * (diag / 2000.0);
+  let seamStroke = 1.0 - smoothstep(0.0, seamWidth, seamDist);
+
+  // Continue only a few seams farther out; pick by boundary id.
+  let continueMask = select(0.0, 1.0, hash1(crack.seed + f32(nearestBoundary) * 19.1) < 0.42);
+  let nearSeam = 1.0 - smoothstep(impactR * 0.7, impactR * 1.6, dist);
+  let farSeam = smoothstep(impactR * 0.85, impactR * 1.2, dist) * continueMask * (1.0 - smoothstep(impactR * 1.2, impactR * 2.2, dist));
+  let seamAlpha = seamStroke * max(nearSeam, farSeam);
+
+  let crackLine = max(voroInterior, seamAlpha);
+
+  let growEdge = 1.0 - smoothstep(crack.growth * 0.85, crack.growth, dist);
+  let a = crackLine * growEdge * crack.intensity * holeMask;
+  if (a < 0.005) { return vec4f(0.0); }
+
+  let glass = vec3f(0.82, 0.92, 1.0);
   return vec4f(glass * a, a);
 }
 
 @fragment fn fs(v: VSOut) -> @location(0) vec4f {
-  let px = v.uv * dg.resolution;
+  let px = v.uv * cg.resolution;
   var col = vec4f(0.0);
-
-  // Darts first, then glass cracks on top (otherwise the dart covers the impact shatter).
-  for (var i = 0; i < ${MAX_DARTS}; i++) {
-    if (i >= i32(dg.dart_count)) { break; }
-    let d = render_dart(px, darts[i]);
-    col = col + d * (1.0 - col.a);
-  }
-
   for (var i = 0; i < ${MAX_CRACKS}; i++) {
-    if (i >= i32(dg.crack_count)) { break; }
+    if (i >= i32(cg.crack_count)) { break; }
     let c = render_crack(px, cracks[i]);
     col = col + c * (1.0 - col.a);
   }
-
   return col;
 }
 `;
 
-// Rasterize SVG to raw RGBA pixels: fetch → Image → canvas → getImageData.
-// Bypasses createImageBitmap and copyExternalImageToTexture entirely.
-async function svgToPixels(url, size) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`fetch ${url}: ${res.status}`);
-  const svgText = await res.text();
-  const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
-  const objUrl = URL.createObjectURL(blob);
-  try {
-    const img = new Image();
-    img.width = size;
-    img.height = size;
-    await new Promise((ok, fail) => { img.onload = ok; img.onerror = fail; img.src = objUrl; });
-    const c = document.createElement('canvas');
-    c.width = size;
-    c.height = size;
-    const ctx = c.getContext('2d');
-    ctx.clearRect(0, 0, size, size);
-    ctx.drawImage(img, 0, 0, size, size);
-    return ctx.getImageData(0, 0, size, size);
-  } finally {
-    URL.revokeObjectURL(objUrl);
+// Generate dart 3D mesh: cylinder (body) along +X, sphere (tip) at front.
+function generateDartMesh() {
+  const bodyHL = 48, bodyR = 10;
+  const segs = 16, hemiRings = 8;
+  const pos = [], nrm = [], mat = [], idx = [];
+  let vi = 0;
+
+  // Cylinder tube
+  for (let i = 0; i <= segs; i++) {
+    const a = (i / segs) * Math.PI * 2;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    pos.push(bodyHL, ca * bodyR, sa * bodyR);
+    nrm.push(0, ca, sa); mat.push(0);
+    pos.push(-bodyHL, ca * bodyR, sa * bodyR);
+    nrm.push(0, ca, sa); mat.push(0);
   }
+  for (let i = 0; i < segs; i++) {
+    const a = i * 2, b = a + 1, c = a + 2, d = a + 3;
+    idx.push(a, b, c, c, b, d);
+  }
+  vi = pos.length / 3;
+
+  // Back cap (flat disc at -bodyHL)
+  pos.push(-bodyHL, 0, 0); nrm.push(-1, 0, 0); mat.push(0);
+  const bc = vi; vi++;
+  for (let i = 0; i <= segs; i++) {
+    const a = (i / segs) * Math.PI * 2;
+    pos.push(-bodyHL, Math.cos(a) * bodyR, Math.sin(a) * bodyR);
+    nrm.push(-1, 0, 0); mat.push(0); vi++;
+  }
+  for (let i = 0; i < segs; i++) idx.push(bc, bc + 2 + i, bc + 1 + i);
+
+  // Hemisphere tip at +bodyHL (same radius as shaft, phi 0..PI/2 only)
+  const sv = vi;
+  for (let r = 0; r <= hemiRings; r++) {
+    const phi = (r / hemiRings) * Math.PI * 0.5;
+    const sp = Math.sin(phi), cp = Math.cos(phi);
+    for (let s = 0; s <= segs; s++) {
+      const theta = (s / segs) * Math.PI * 2;
+      const st = Math.sin(theta), ct = Math.cos(theta);
+      const nx = cp, ny = sp * ct, nz = sp * st;
+      pos.push(bodyHL + nx * bodyR, ny * bodyR, nz * bodyR);
+      nrm.push(nx, ny, nz); mat.push(1); vi++;
+    }
+  }
+  for (let r = 0; r < hemiRings; r++) {
+    for (let s = 0; s < segs; s++) {
+      const a = sv + r * (segs + 1) + s;
+      const b = a + segs + 1;
+      idx.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+  }
+
+  return {
+    positions: new Float32Array(pos),
+    normals: new Float32Array(nrm),
+    matIds: new Float32Array(mat),
+    indices: new Uint16Array(idx),
+    vertexCount: vi,
+    indexCount: idx.length,
+  };
 }
 
-// Load glass_shatter_[1-4].svg into a 2D array texture via raw writeTexture.
-async function loadGlassShatterTextures(device, size = 512) {
-  const names = ['glass_shatter_1.svg', 'glass_shatter_2.svg', 'glass_shatter_3.svg', 'glass_shatter_4.svg'];
-  const texture = device.createTexture({
-    label: 'glass-shatter',
-    size: { width: size, height: size, depthOrArrayLayers: 4 },
-    format: 'rgba8unorm',
-    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-  });
+// Build model matrix: mesh +X = forward direction, +Y = up, +Z = right.
+function buildDartModelMatrix(out, px, py, pz, fx, fy, fz, scale) {
+  const fl = Math.hypot(fx, fy, fz) || 1;
+  const Fx = fx / fl, Fy = fy / fl, Fz = fz / fl;
+  // Right = cross(Forward, worldUp), worldUp = (0,1,0)
+  let Rx = -Fz, Ry = 0, Rz = Fx;
+  let rl = Math.hypot(Rx, Ry, Rz);
+  if (rl < 1e-6) { Rx = 0; Ry = 0; Rz = 1; rl = 1; }
+  Rx /= rl; Ry /= rl; Rz /= rl;
+  const Ux = Ry * Fz - Rz * Fy, Uy = Rz * Fx - Rx * Fz, Uz = Rx * Fy - Ry * Fx;
+  // col0 = Forward (mesh X), col1 = Up (mesh Y), col2 = Right (mesh Z)
+  out[0]  = Fx * scale; out[1]  = Fy * scale; out[2]  = Fz * scale; out[3]  = 0;
+  out[4]  = Ux * scale; out[5]  = Uy * scale; out[6]  = Uz * scale; out[7]  = 0;
+  out[8]  = Rx * scale; out[9]  = Ry * scale; out[10] = Rz * scale; out[11] = 0;
+  out[12] = px;         out[13] = py;         out[14] = pz;         out[15] = 1;
+}
+
+// Perspective: maps view-space (-Z forward) to WebGPU clip space (Z in [0,1]).
+function perspectiveMatrix(out, fovY, aspect, near, far) {
+  const f = 1 / Math.tan(fovY * 0.5);
+  const d = 1 / (far - near);
+  out.fill(0);
+  out[0]  = f / aspect;
+  out[5]  = f;
+  out[10] = far * d;
+  out[11] = 1;
+  out[14] = -(near * far * d);
+}
+
+// LookAt: eye looking at target with given up; view-space has +Z going away from eye (into scene).
+function lookAtMatrix(out, ex, ey, ez, tx, ty, tz, ux, uy, uz) {
+  let fx = tx - ex, fy = ty - ey, fz = tz - ez;
+  let fl = Math.hypot(fx, fy, fz); fx /= fl; fy /= fl; fz /= fl;
+  let rx = fy * uz - fz * uy, ry = fz * ux - fx * uz, rz = fx * uy - fy * ux;
+  let rl = Math.hypot(rx, ry, rz); rx /= rl; ry /= rl; rz /= rl;
+  const ux2 = ry * fz - rz * fy, uy2 = rz * fx - rx * fz, uz2 = rx * fy - ry * fx;
+  out[0] = rx;   out[1] = ux2;  out[2] = fx;   out[3] = 0;
+  out[4] = ry;   out[5] = uy2;  out[6] = fy;   out[7] = 0;
+  out[8] = rz;   out[9] = uz2;  out[10] = fz;  out[11] = 0;
+  out[12] = -(rx * ex + ry * ey + rz * ez);
+  out[13] = -(ux2 * ex + uy2 * ey + uz2 * ez);
+  out[14] = -(fx * ex + fy * ey + fz * ez);
+  out[15] = 1;
+}
+
+function mat4Multiply(out, a, b) {
   for (let i = 0; i < 4; i++) {
-    const pixels = await svgToPixels('./' + names[i], size);
-    device.queue.writeTexture(
-      { texture, origin: { x: 0, y: 0, z: i } },
-      pixels.data,
-      { bytesPerRow: size * 4 },
-      { width: size, height: size },
-    );
+    const ai0 = a[i], ai1 = a[i+4], ai2 = a[i+8], ai3 = a[i+12];
+    out[i]    = ai0*b[0]  + ai1*b[1]  + ai2*b[2]  + ai3*b[3];
+    out[i+4]  = ai0*b[4]  + ai1*b[5]  + ai2*b[6]  + ai3*b[7];
+    out[i+8]  = ai0*b[8]  + ai1*b[9]  + ai2*b[10] + ai3*b[11];
+    out[i+12] = ai0*b[12] + ai1*b[13] + ai2*b[14] + ai3*b[15];
   }
-  return {
-    sampler: device.createSampler({ magFilter: 'linear', minFilter: 'linear',
-      addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' }),
-    textureView: texture.createView({ dimension: '2d-array', arrayLayerCount: 4 }),
-  };
 }
 
 // =============================================================================
@@ -1273,60 +1476,96 @@ async function main() {
     smoke: makePipeline(SMOKE_WGSL),
   };
 
-  // --- Dart + Crack overlay pipeline ---
-  // Separate pipeline rendered as a second pass (loadOp: 'load') on top of the
-  // effect layer. Has its own bind group with dart/crack-specific uniforms and
-  // storage buffers. Active darts and cracks are tracked in JS arrays, updated
-  // with physics each frame, and uploaded to these buffers.
-  const dartGlobalsSize = 32;
-  const dartStride = 32;
-  const crackStride = 32;
-  const dartGlobalsBuffer = device.createBuffer({ size: dartGlobalsSize, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  const dartBuffer = device.createBuffer({ size: MAX_DARTS * dartStride, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
-  const crackBuffer = device.createBuffer({ size: MAX_CRACKS * crackStride, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  // --- 3D Dart pipeline (real geometry, instanced) ---
+  const dartMesh = generateDartMesh();
 
-  let shatterResources;
-  try {
-    shatterResources = await loadGlassShatterTextures(device);
-  } catch (e) {
-    console.warn('Glass shatter SVG load failed; using empty crack texture.', e);
-    const dummy = device.createTexture({
-      size: { width: 1, height: 1, depthOrArrayLayers: 4 },
-      format: 'rgba8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  const dartVBPos = device.createBuffer({ size: dartMesh.positions.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+  const dartVBNrm = device.createBuffer({ size: dartMesh.normals.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+  const dartVBMat = device.createBuffer({ size: dartMesh.matIds.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+  const dartIB = device.createBuffer({ size: dartMesh.indices.byteLength, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(dartVBPos, 0, dartMesh.positions);
+  device.queue.writeBuffer(dartVBNrm, 0, dartMesh.normals);
+  device.queue.writeBuffer(dartVBMat, 0, dartMesh.matIds);
+  device.queue.writeBuffer(dartIB, 0, dartMesh.indices);
+
+  // Camera uniform: mat4x4f viewProj = 64 bytes
+  const dartCamBuffer = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  // Instance buffer: per-dart mat4x4f model (64 bytes) + vec4f color (16 bytes) = 80 bytes each
+  const dartInstanceStride = 80;
+  const dartInstanceBuffer = device.createBuffer({ size: MAX_DARTS * dartInstanceStride, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+
+  // Depth texture for 3D dart pass (recreated on resize)
+  let dartDepthTex = null;
+  function ensureDartDepthTex(w, h) {
+    if (dartDepthTex && dartDepthTex.width === w && dartDepthTex.height === h) return;
+    if (dartDepthTex) dartDepthTex.destroy();
+    dartDepthTex = device.createTexture({
+      size: { width: w, height: h },
+      format: 'depth24plus',
+      usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
-    const px = new Uint8Array([0, 0, 0, 0]);
-    for (let i = 0; i < 4; i++) {
-      device.queue.writeTexture(
-        { texture: dummy, origin: { x: 0, y: 0, z: i } },
-        px,
-        { bytesPerRow: 4 },
-        { width: 1, height: 1, depthOrArrayLayers: 1 }
-      );
-    }
-    shatterResources = {
-      sampler: device.createSampler({ magFilter: 'linear', minFilter: 'linear' }),
-      textureView: dummy.createView({ dimension: '2d-array', arrayLayerCount: 4 }),
-    };
   }
 
-  const dartBGL = device.createBindGroupLayout({
+  const dart3dBGL = device.createBindGroupLayout({
     entries: [
-      { binding: 0, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
-      { binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
-      { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
-      { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
-      { binding: 4, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+      { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
+      { binding: 1, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+    ],
+  });
+  const dart3dPipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [dart3dBGL] });
+  const dart3dModule = device.createShaderModule({ code: DART_3D_WGSL });
+  const dart3dPipeline = device.createRenderPipeline({
+    layout: dart3dPipelineLayout,
+    vertex: {
+      module: dart3dModule,
+      entryPoint: 'vs',
+      buffers: [
+        { arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x3' }] },
+        { arrayStride: 12, attributes: [{ shaderLocation: 1, offset: 0, format: 'float32x3' }] },
+        { arrayStride: 4,  attributes: [{ shaderLocation: 2, offset: 0, format: 'float32' }] },
+      ],
+    },
+    fragment: {
+      module: dart3dModule,
+      entryPoint: 'fs',
+      targets: [{
+        format,
+        blend: {
+          color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+          alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+        },
+      }],
+    },
+    primitive: { topology: 'triangle-list', cullMode: 'back' },
+    depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' },
+  });
+  const dart3dBindGroup = device.createBindGroup({
+    layout: dart3dBGL,
+    entries: [
+      { binding: 0, resource: { buffer: dartCamBuffer } },
+      { binding: 1, resource: { buffer: dartInstanceBuffer } },
     ],
   });
 
-  const dartPipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [dartBGL] });
-  const dartModule = device.createShaderModule({ code: DART_CRACK_WGSL });
-  const dartPipeline = device.createRenderPipeline({
-    layout: dartPipelineLayout,
-    vertex: { module: dartModule, entryPoint: 'vs' },
+  // --- 2D Crack overlay pipeline (glass shatter SVG textures) ---
+  const crackGlobalsSize = 16;
+  const crackStride = 32;
+  const crackGlobalsBuffer = device.createBuffer({ size: crackGlobalsSize, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const crackBuffer = device.createBuffer({ size: MAX_CRACKS * crackStride, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+
+  const crackBGL = device.createBindGroupLayout({
+    entries: [
+      { binding: 0, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
+      { binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+    ],
+  });
+  const crackPipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [crackBGL] });
+  const crackModule = device.createShaderModule({ code: CRACK_2D_WGSL });
+  const crackPipeline = device.createRenderPipeline({
+    layout: crackPipelineLayout,
+    vertex: { module: crackModule, entryPoint: 'vs' },
     fragment: {
-      module: dartModule,
+      module: crackModule,
       entryPoint: 'fs',
       targets: [{
         format,
@@ -1338,15 +1577,11 @@ async function main() {
     },
     primitive: { topology: 'triangle-strip' },
   });
-
-  const dartBindGroup = device.createBindGroup({
-    layout: dartBGL,
+  const crackBindGroup = device.createBindGroup({
+    layout: crackBGL,
     entries: [
-      { binding: 0, resource: { buffer: dartGlobalsBuffer } },
-      { binding: 1, resource: { buffer: dartBuffer } },
-      { binding: 2, resource: { buffer: crackBuffer } },
-      { binding: 3, resource: shatterResources.textureView },
-      { binding: 4, resource: shatterResources.sampler },
+      { binding: 0, resource: { buffer: crackGlobalsBuffer } },
+      { binding: 1, resource: { buffer: crackBuffer } },
     ],
   });
 
@@ -1990,31 +2225,39 @@ async function main() {
   const nerfWidget = document.getElementById('nerf-widget');
   const nerfBtn = document.getElementById('nerf-btn');
 
+  // CSS pixels -> 3D world: (0,0) = center; +X right, +Y down, -Z into screen
+  // The 3D camera sits behind the viewer (positive Z), looking at Z=0 (the screen plane).
+  // Screen coords are mapped so 1 CSS pixel ~ 1 world unit at Z=0.
+  function screenTo3D(sx, sy, bw, bh) {
+    return { x: sx - bw * 0.5, y: -(sy - bh * 0.5), z: 0 };
+  }
+
   function fireNerf() {
     if (activeDarts.length >= MAX_DARTS) return;
     const { w: bw, h: bh } = getBodySize();
     const tx = 80 + Math.random() * (bw - 160);
     const ty = 60 + Math.random() * (bh - 200);
+    const target3d = screenTo3D(tx, ty, bw, bh);
 
-    // From “behind” the viewer: start near lower-center, small Z (large on screen), fly into the plane.
-    const start = {
-      x: bw * (0.5 + (Math.random() - 0.5) * 0.26),
-      y: bh * (0.76 + (Math.random() - 0.5) * 0.14),
-    };
+    // Start behind the camera (large positive Z), offset laterally from center
+    const sx = (Math.random() - 0.5) * bw * 0.3;
+    const sy = -bh * 0.25 + (Math.random() - 0.5) * bh * 0.1;
+    const sz = bh * 1.2;
 
-    const dx = tx - start.x;
-    const dy = ty - start.y;
-    const dist = Math.hypot(dx, dy);
-    const flyDuration = Math.min(0.95, Math.max(0.32, 0.22 + dist / 1400));
+    const dx3 = target3d.x - sx, dy3 = target3d.y - sy, dz3 = target3d.z - sz;
+    const dist3 = Math.hypot(dx3, dy3, dz3);
+    const flyDuration = Math.min(0.95, Math.max(0.32, 0.22 + dist3 / 2000));
 
     activeDarts.push({
-      x: start.x, y: start.y,
-      startX: start.x, startY: start.y,
-      targetX: tx, targetY: ty,
-      vx: 0, vy: 0,
-      angle: Math.atan2(dy, dx),
-      angVel: 0,
-      scale: 2.5,
+      x3: sx, y3: sy, z3: sz,
+      startX3: sx, startY3: sy, startZ3: sz,
+      targetX3: target3d.x, targetY3: target3d.y, targetZ3: target3d.z,
+      targetScreenX: tx, targetScreenY: ty,
+      fx: dx3, fy: dy3, fz: dz3,
+      vx3: 0, vy3: 0, vz3: 0,
+      angX: 0, angY: 0, angZ: 0,
+      angVelX: 0, angVelY: 0, angVelZ: 0,
+      scale3d: 1.0,
       alpha: 1,
       phase: 'flying',
       flyTime: 0,
@@ -2035,53 +2278,66 @@ async function main() {
         d.flyTime += dt;
         const t = Math.min(d.flyTime / d.flyDuration, 1);
         const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-        d.x = d.startX + (d.targetX - d.startX) * ease;
-        d.y = d.startY + (d.targetY - d.startY) * ease;
-        d.scale = 2.5 - 1.5 * ease;
-        d.angle = Math.atan2(d.targetY - d.startY, d.targetX - d.startX);
+        d.x3 = d.startX3 + (d.targetX3 - d.startX3) * ease;
+        d.y3 = d.startY3 + (d.targetY3 - d.startY3) * ease;
+        d.z3 = d.startZ3 + (d.targetZ3 - d.startZ3) * ease;
+        d.fx = d.targetX3 - d.startX3;
+        d.fy = d.targetY3 - d.startY3;
+        d.fz = d.targetZ3 - d.startZ3;
+        d.scale3d = 1.0;
 
         if (t >= 1) {
           d.phase = 'bouncing';
-          const dx = d.targetX - d.startX, dy = d.targetY - d.startY;
-          const len = Math.sqrt(dx * dx + dy * dy);
-          d.vx = (dx / len) * 120 * (0.5 + Math.random() * 0.5);
-          d.vy = (dy / len) * 80 - 200;
-          d.angVel = (Math.random() - 0.5) * 18;
-          d.scale = 1;
+          const fl = Math.hypot(d.fx, d.fy, d.fz) || 1;
+          d.vx3 = (d.fx / fl) * 80 * (0.5 + Math.random() * 0.5);
+          d.vy3 = 200;
+          d.vz3 = -40;
+          d.angVelX = (Math.random() - 0.5) * 12;
+          d.angVelY = (Math.random() - 0.5) * 12;
+          d.angVelZ = (Math.random() - 0.5) * 12;
+          d.scale3d = 1.0;
 
           activeCracks.push({
-            x: d.targetX, y: d.targetY,
+            x: d.targetScreenX, y: d.targetScreenY,
             birthTime: performance.now() / 1000,
             intensity: 1.0,
-            // small seed just for rotation variation — kept low so crack.seed * 0.0731 stays a sane angle
-            seed: Math.random() * 86,
-            shatterIdx: Math.floor(Math.random() * 4),
+            seed: Math.random() * 1000,
+            growth: 0,
           });
         }
       } else if (d.phase === 'bouncing') {
-        d.vy += gravity * dt;
-        d.x += d.vx * dt;
-        d.y += d.vy * dt;
-        d.angle += d.angVel * dt;
+        d.vy3 -= gravity * dt;
+        d.x3 += d.vx3 * dt;
+        d.y3 += d.vy3 * dt;
+        d.z3 += d.vz3 * dt;
+        d.angX += d.angVelX * dt;
+        d.angY += d.angVelY * dt;
+        d.angZ += d.angVelZ * dt;
 
-        if (d.y > bh - 15) {
-          d.y = bh - 15;
-          d.vy *= -bounce;
-          d.vx *= 0.75;
-          d.angVel *= 0.6;
-          if (Math.abs(d.vy) < 30) {
+        const floorY = -(bh * 0.5 - 15);
+        if (d.y3 < floorY) {
+          d.y3 = floorY;
+          d.vy3 *= -bounce;
+          d.vx3 *= 0.75;
+          d.vz3 *= 0.75;
+          d.angVelX *= 0.6; d.angVelY *= 0.6; d.angVelZ *= 0.6;
+          if (Math.abs(d.vy3) < 30) {
             d.phase = 'resting';
             d.restTime = 0;
           }
         }
-        if (d.x < 15) { d.x = 15; d.vx = Math.abs(d.vx) * bounce; }
-        if (d.x > bw - 15) { d.x = bw - 15; d.vx = -Math.abs(d.vx) * bounce; }
+        const wallX = bw * 0.5 - 15;
+        if (d.x3 < -wallX) { d.x3 = -wallX; d.vx3 = Math.abs(d.vx3) * bounce; }
+        if (d.x3 > wallX) { d.x3 = wallX; d.vx3 = -Math.abs(d.vx3) * bounce; }
       } else if (d.phase === 'resting') {
-        d.vy += gravity * dt;
-        d.y = Math.min(d.y + d.vy * dt, bh - 15);
-        d.vy *= 0.9;
-        d.angVel *= 0.95;
-        d.angle += d.angVel * dt;
+        d.vy3 -= gravity * dt;
+        const floorY = -(bh * 0.5 - 15);
+        d.y3 = Math.max(d.y3 + d.vy3 * dt, floorY);
+        d.vy3 *= 0.9;
+        d.angVelX *= 0.95; d.angVelY *= 0.95; d.angVelZ *= 0.95;
+        d.angX += d.angVelX * dt;
+        d.angY += d.angVelY * dt;
+        d.angZ += d.angVelZ * dt;
         d.restTime += dt;
         d.alpha = Math.max(0, 1 - (d.restTime - 1.5) / 1.5);
         if (d.alpha <= 0) { activeDarts.splice(i, 1); }
@@ -2089,10 +2345,16 @@ async function main() {
     }
 
     const now = performance.now() / 1000;
+    const screenDiag = Math.hypot(bw, bh);
     for (let i = activeCracks.length - 1; i >= 0; i--) {
       const c = activeCracks[i];
       const age = now - c.birthTime;
-      c.intensity = Math.max(0, 1 - age / 3.0);
+      const growDuration = 1.2;
+      const growEase = Math.min(age / growDuration, 1);
+      c.growth = growEase * screenDiag * 1.2;
+      const fadeStart = 3.0;
+      const fadeDuration = 4.0;
+      c.intensity = age < fadeStart ? 1.0 : Math.max(0, 1 - (age - fadeStart) / fadeDuration);
       if (c.intensity <= 0) { activeCracks.splice(i, 1); }
     }
   }
@@ -2100,6 +2362,16 @@ async function main() {
   const nerfDrag = makeDraggable(nerfWidget, nerfBtn, {
     onClick: fireNerf,
   });
+
+  // Default nerf hub position: bottom-center, ~150px from bottom edge.
+  nerfWidget.removeAttribute('style');
+  {
+    const { w: bw, h: bh } = getBodySize();
+    const initCx = bw * 0.5;
+    const initCy = bh - 150;
+    nerfDrag.position(null, initCx, initCy);
+    nerfWidget.classList.remove('snapped');
+  }
 
   // --- Controls ---
   const viscosityEl = document.getElementById('viscosity');
@@ -2512,31 +2784,52 @@ async function main() {
     const dartCount = Math.min(activeDarts.length, MAX_DARTS);
     const crackCount = Math.min(activeCracks.length, MAX_CRACKS);
 
-    const dgData = new ArrayBuffer(dartGlobalsSize);
-    const dgv = new DataView(dgData);
-    dgv.setFloat32(0, canvas.width, true);
-    dgv.setFloat32(4, canvas.height, true);
-    dgv.setFloat32(8, now, true);
-    dgv.setFloat32(12, dartCount, true);
-    dgv.setFloat32(16, crackCount, true);
-    device.queue.writeBuffer(dartGlobalsBuffer, 0, dgData);
+    // Build viewProj matrix for 3D darts (world = CSS pixels, origin at screen center)
+    const { w: cssW, h: cssH } = getBodySize();
+    const aspect = cssW / cssH;
+    const projMat = new Float32Array(16);
+    const viewMat = new Float32Array(16);
+    const vpMat = new Float32Array(16);
+    const fovY = Math.PI / 3;
+    const camZ = (cssH * 0.5) / Math.tan(fovY * 0.5);
+    perspectiveMatrix(projMat, fovY, aspect, 1.0, camZ * 4);
+    lookAtMatrix(viewMat, 0, 0, camZ, 0, 0, 0, 0, 1, 0);
+    mat4Multiply(vpMat, projMat, viewMat);
+    device.queue.writeBuffer(dartCamBuffer, 0, vpMat);
 
     if (dartCount > 0) {
-      const dBuf = new ArrayBuffer(MAX_DARTS * dartStride);
-      const ddv = new DataView(dBuf);
+      const instBuf = new Float32Array(MAX_DARTS * 20);
+      const tmpModel = new Float32Array(16);
       for (let i = 0; i < dartCount; i++) {
         const d = activeDarts[i];
-        const off = i * dartStride;
-        ddv.setFloat32(off + 0, d.x * dpr, true);
-        ddv.setFloat32(off + 4, d.y * dpr, true);
-        ddv.setFloat32(off + 8, d.angle, true);
-        ddv.setFloat32(off + 12, d.scale * dpr, true);
-        ddv.setFloat32(off + 16, d.alpha, true);
+        const off = i * 20;
+        if (d.phase === 'flying') {
+          buildDartModelMatrix(tmpModel, d.x3, d.y3, d.z3, d.fx, d.fy, d.fz, d.scale3d);
+        } else {
+          const cx = Math.cos(d.angX), sx = Math.sin(d.angX);
+          const cy = Math.cos(d.angY), sy = Math.sin(d.angY);
+          const cz = Math.cos(d.angZ), sz = Math.sin(d.angZ);
+          const s = d.scale3d;
+          tmpModel[0]  = (cy*cz)*s;               tmpModel[1]  = (cy*sz)*s;               tmpModel[2]  = (-sy)*s;     tmpModel[3]  = 0;
+          tmpModel[4]  = (sx*sy*cz - cx*sz)*s;     tmpModel[5]  = (sx*sy*sz + cx*cz)*s;     tmpModel[6]  = (sx*cy)*s;   tmpModel[7]  = 0;
+          tmpModel[8]  = (cx*sy*cz + sx*sz)*s;     tmpModel[9]  = (cx*sy*sz - sx*cz)*s;     tmpModel[10] = (cx*cy)*s;   tmpModel[11] = 0;
+          tmpModel[12] = d.x3;                     tmpModel[13] = d.y3;                     tmpModel[14] = d.z3;        tmpModel[15] = 1;
+        }
+        instBuf.set(tmpModel, off);
+        instBuf[off + 16] = 1; instBuf[off + 17] = 1; instBuf[off + 18] = 1; instBuf[off + 19] = d.alpha;
       }
-      device.queue.writeBuffer(dartBuffer, 0, dBuf);
+      device.queue.writeBuffer(dartInstanceBuffer, 0, instBuf);
     }
 
     if (crackCount > 0) {
+      const cgData = new ArrayBuffer(crackGlobalsSize);
+      const cgv = new DataView(cgData);
+      cgv.setFloat32(0, canvas.width, true);
+      cgv.setFloat32(4, canvas.height, true);
+      cgv.setFloat32(8, now, true);
+      cgv.setFloat32(12, crackCount, true);
+      device.queue.writeBuffer(crackGlobalsBuffer, 0, cgData);
+
       const cBuf = new ArrayBuffer(MAX_CRACKS * crackStride);
       const cdv = new DataView(cBuf);
       for (let i = 0; i < crackCount; i++) {
@@ -2547,7 +2840,7 @@ async function main() {
         cdv.setFloat32(off + 8, now - c.birthTime, true);
         cdv.setFloat32(off + 12, c.intensity, true);
         cdv.setFloat32(off + 16, c.seed, true);
-        cdv.setFloat32(off + 20, c.shatterIdx, true);
+        cdv.setFloat32(off + 20, c.growth * dpr, true);
       }
       device.queue.writeBuffer(crackBuffer, 0, cBuf);
     }
@@ -2556,6 +2849,7 @@ async function main() {
     const commandEncoder = device.createCommandEncoder();
     const textureView = ctx.getCurrentTexture().createView();
 
+    // Pass 1: effect layer (goo/water/smoke)
     const pass = commandEncoder.beginRenderPass({
       colorAttachments: [{
         view: textureView,
@@ -2569,18 +2863,45 @@ async function main() {
     pass.draw(4);
     pass.end();
 
-    if (dartCount > 0 || crackCount > 0) {
-      const pass2 = commandEncoder.beginRenderPass({
+    // Pass 2: 2D crack overlay (glass shatter — drawn first so darts appear on top)
+    if (crackCount > 0) {
+      const crackPass = commandEncoder.beginRenderPass({
         colorAttachments: [{
           view: textureView,
           loadOp: 'load',
           storeOp: 'store',
         }],
       });
-      pass2.setPipeline(dartPipeline);
-      pass2.setBindGroup(0, dartBindGroup);
-      pass2.draw(4);
-      pass2.end();
+      crackPass.setPipeline(crackPipeline);
+      crackPass.setBindGroup(0, crackBindGroup);
+      crackPass.draw(4);
+      crackPass.end();
+    }
+
+    // Pass 3: 3D darts (real geometry with depth — on top of cracks)
+    if (dartCount > 0) {
+      ensureDartDepthTex(canvas.width, canvas.height);
+      const dartPass = commandEncoder.beginRenderPass({
+        colorAttachments: [{
+          view: textureView,
+          loadOp: 'load',
+          storeOp: 'store',
+        }],
+        depthStencilAttachment: {
+          view: dartDepthTex.createView(),
+          depthClearValue: 1.0,
+          depthLoadOp: 'clear',
+          depthStoreOp: 'discard',
+        },
+      });
+      dartPass.setPipeline(dart3dPipeline);
+      dartPass.setBindGroup(0, dart3dBindGroup);
+      dartPass.setVertexBuffer(0, dartVBPos);
+      dartPass.setVertexBuffer(1, dartVBNrm);
+      dartPass.setVertexBuffer(2, dartVBMat);
+      dartPass.setIndexBuffer(dartIB, 'uint16');
+      dartPass.drawIndexed(dartMesh.indexCount, dartCount);
+      dartPass.end();
     }
 
     device.queue.submit([commandEncoder.finish()]);

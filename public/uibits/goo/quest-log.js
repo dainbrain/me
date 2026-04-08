@@ -97,14 +97,14 @@
 
   /* ─── State ─────────────────────────────────────────────────────────────── */
   let panelOpen      = false;
-  let minimized      = false;
+  let displayMode    = 'full'; // full | minimal | frameless
   let currentFilter  = 'active';
   let currentCtxId   = null;
   let addRowVisible  = false;
   let uidCounter     = 100;
 
   /* ─── DOM refs (set in buildDOM) ────────────────────────────────────────── */
-  let rootWidget, hubBtn, panelHeader, panel, questBody, ctxMenu, assignPanel, addRow, addInput;
+  let rootWidget, hubBtn, panelHeader, panel, questBody, ctxMenu, assignPanel, addRow, addInput, hubCtxMenu;
   let transparent = true; // transparent by default
 
   /* ─── DOM injection ─────────────────────────────────────────────────────── */
@@ -118,13 +118,14 @@
       <div class="quest-hub" id="quest-hub" data-goo
            role="button" tabindex="0"
            aria-label="Quest Log" aria-pressed="false">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect x="2" y="2.5" width="14" height="13" rx="2.5" stroke="currentColor" stroke-width="1.5"/>
-          <line x1="5" y1="6.5"  x2="13" y2="6.5"  stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-          <line x1="5" y1="9.25" x2="11" y2="9.25" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-          <line x1="5" y1="12"   x2="9"  y2="12"   stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-          <!-- Tiny check badge top-right (active task indicator) -->
-          <circle cx="14.5" cy="3.5" r="2.5" fill="#22c55e" class="quest-hub-badge" id="quest-hub-badge"/>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-list-check" aria-hidden="true">
+          <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+          <path d="M3.5 5.5l1.5 1.5l2.5 -2.5" />
+          <path d="M3.5 11.5l1.5 1.5l2.5 -2.5" />
+          <path d="M3.5 17.5l1.5 1.5l2.5 -2.5" />
+          <path d="M11 6l9 0" />
+          <path d="M11 12l9 0" />
+          <path d="M11 18l9 0" />
         </svg>
       </div>
 
@@ -233,6 +234,21 @@
       assignPanel.appendChild(btn);
     });
     document.body.appendChild(assignPanel);
+
+    // ── Hub context menu (display mode) ────────────────────────────────────
+    hubCtxMenu = document.createElement('div');
+    hubCtxMenu.id = 'quest-hub-context-menu';
+    hubCtxMenu.className = 'context-menu';
+    hubCtxMenu.hidden = true;
+    hubCtxMenu.setAttribute('role', 'menu');
+    hubCtxMenu.setAttribute('aria-hidden', 'true');
+    hubCtxMenu.innerHTML = `
+      <div class="ctx-heading">Mode</div>
+      <button type="button" class="ctx-item ctx-item--quest-mode" role="menuitemradio" data-quest-mode="full" aria-checked="false">Full</button>
+      <button type="button" class="ctx-item ctx-item--quest-mode" role="menuitemradio" data-quest-mode="minimal" aria-checked="false">Minimal</button>
+      <button type="button" class="ctx-item ctx-item--quest-mode" role="menuitemradio" data-quest-mode="frameless" aria-checked="false">Frameless</button>
+    `;
+    document.body.appendChild(hubCtxMenu);
   }
 
   /* ─── Panel open / close ────────────────────────────────────────────────── */
@@ -256,6 +272,29 @@
 
   function togglePanel() {
     if (panelOpen) closePanel(); else openPanel();
+  }
+
+  function syncHubContextMenuChecks() {
+    if (!hubCtxMenu) return;
+    hubCtxMenu.querySelectorAll('.ctx-item--quest-mode').forEach((btn) => {
+      btn.setAttribute('aria-checked', btn.dataset.questMode === displayMode ? 'true' : 'false');
+    });
+  }
+
+  function setDisplayMode(nextMode) {
+    if (nextMode !== 'full' && nextMode !== 'minimal' && nextMode !== 'frameless') return;
+    displayMode = nextMode;
+    const isCompact = displayMode !== 'full';
+    panel.classList.toggle('quest-panel--minimized', isCompact);
+    panel.classList.toggle('quest-panel--frameless', displayMode === 'frameless');
+    const minimizeBtn = document.getElementById('quest-minimize-btn');
+    if (minimizeBtn) minimizeBtn.setAttribute('aria-pressed', String(displayMode === 'minimal'));
+    if (isCompact) {
+      addRowVisible = false;
+      addRow.style.display = 'none';
+    }
+    syncHubContextMenuChecks();
+    renderQuestPanel();
   }
 
   /* ─── Panel position relative to hub ────────────────────────────────────── */
@@ -299,8 +338,8 @@
   function renderQuestPanel() {
     updateBadge();
 
-    if (minimized) {
-      renderMiniPanel();
+    if (displayMode === 'minimal' || displayMode === 'frameless') {
+      renderMiniPanel(displayMode === 'frameless');
       return;
     }
 
@@ -336,7 +375,7 @@
     });
   }
 
-  function renderMiniPanel() {
+  function renderMiniPanel(isFrameless) {
     // Show top 3 active items sorted by priority — no groups, no expand
     const top = questItems
       .filter(i => i.status === 'active')
@@ -363,8 +402,8 @@
       row.innerHTML = `
         <span class="quest-gem" aria-hidden="true">◆</span>
         <span class="quest-mini-title">${escHtml(item.title)}</span>
-        ${assignee ? `<div class="quest-assignee-avatar" title="${assignee.name}"><img src="https://i.pravatar.cc/60?img=${assignee.img}" alt="${assignee.name}" loading="lazy"></div>` : ''}
-        <span class="quest-badge quest-badge--${item.source}">${item.source.toUpperCase()}</span>
+        ${isFrameless ? '' : (assignee ? `<div class="quest-assignee-avatar" title="${assignee.name}"><img src="https://i.pravatar.cc/60?img=${assignee.img}" alt="${assignee.name}" loading="lazy"></div>` : '')}
+        ${isFrameless ? '' : `<span class="quest-badge quest-badge--${item.source}">${item.source.toUpperCase()}</span>`}
       `;
       questBody.appendChild(row);
     });
@@ -548,6 +587,10 @@
   function closeCtxMenus() {
     ctxMenu.hidden = true;   ctxMenu.setAttribute('aria-hidden', 'true');
     assignPanel.hidden = true; assignPanel.setAttribute('aria-hidden', 'true');
+    if (hubCtxMenu) {
+      hubCtxMenu.hidden = true;
+      hubCtxMenu.setAttribute('aria-hidden', 'true');
+    }
     currentCtxId = null;
   }
 
@@ -584,15 +627,7 @@
     });
 
     document.getElementById('quest-minimize-btn').addEventListener('click', () => {
-      minimized = !minimized;
-      panel.classList.toggle('quest-panel--minimized', minimized);
-      document.getElementById('quest-minimize-btn').setAttribute('aria-pressed', String(minimized));
-      // hide add-row and reset its state when minimizing
-      if (minimized) {
-        addRowVisible = false;
-        addRow.style.display = 'none';
-      }
-      renderQuestPanel();
+      setDisplayMode(displayMode === 'minimal' ? 'full' : 'minimal');
     });
 
     // Filter buttons
@@ -664,6 +699,16 @@
       positionContextMenu(ctxMenu, e.clientX, e.clientY);
     });
 
+    rootWidget.addEventListener('contextmenu', (e) => {
+      if (!hubBtn.contains(e.target)) return;
+      e.preventDefault();
+      closeCtxMenus();
+      syncHubContextMenuChecks();
+      hubCtxMenu.hidden = false;
+      hubCtxMenu.setAttribute('aria-hidden', 'false');
+      positionContextMenu(hubCtxMenu, e.clientX, e.clientY);
+    });
+
     ctxMenu.addEventListener('click', e => {
       const btn = e.target.closest('[data-quest-action]');
       if (!btn || !currentCtxId) return;
@@ -680,9 +725,19 @@
       currentCtxId = null;
     });
 
+    hubCtxMenu.addEventListener('click', (e) => {
+      const modeBtn = e.target.closest('.ctx-item--quest-mode');
+      if (!modeBtn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setDisplayMode(modeBtn.dataset.questMode);
+      closeCtxMenus();
+    });
+
     // Close menus on outside click
     document.addEventListener('pointerdown', e => {
       if (!ctxMenu.hidden    && !ctxMenu.contains(e.target)    && !panel.contains(e.target)) closeCtxMenus();
+      if (hubCtxMenu && !hubCtxMenu.hidden && !hubCtxMenu.contains(e.target)) closeCtxMenus();
       if (!assignPanel.hidden && !assignPanel.contains(e.target)) {
         assignPanel.hidden = true;
         assignPanel.setAttribute('aria-hidden', 'true');
@@ -691,7 +746,7 @@
 
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
-        if (!ctxMenu.hidden || !assignPanel.hidden) closeCtxMenus();
+        if (!ctxMenu.hidden || !assignPanel.hidden || (hubCtxMenu && !hubCtxMenu.hidden)) closeCtxMenus();
         else if (panelOpen) closePanel();
       }
     });
@@ -715,6 +770,7 @@
 
     wireEvents();
     updateBadge();
+    setDisplayMode('full');
     openPanel(); // default open
   }
 
