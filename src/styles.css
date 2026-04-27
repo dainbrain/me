@@ -5,7 +5,7 @@
 
   /* thanks fluid-type-scale.com */
   --fs-sm: clamp(0.8rem, -0.07vi + 0.82rem, 0.73rem);
-  --fs-base: clamp(1rem, 0.21vi + 0.94rem, 1.19rem);
+  --fs-base: clamp(0.9rem, 0.14vi + 0.86rem, 1.06rem);
   --fs-md: clamp(1.25rem, 0.75vi + 1.03rem, 1.92rem);
   --fs-lg: clamp(1.56rem, 1.72vi + 1.05rem, 3.11rem);
   --fs-xl: clamp(1.95rem, 3.42vi + 0.93rem, 5.03rem);
@@ -13,7 +13,7 @@
   --fs-xxxl: clamp(3.05rem, 11.23vi + -0.31rem, 13.17rem);
 
   --heading-line-height: 0.85;
-  --body-line-height: clamp(1.4rem, 2.4vh, 1.6rem);
+  --body-line-height: 1.48;
 
   --background-color: #0E0C0A;
   --foreground-color: #F2F2F2;
@@ -96,6 +96,14 @@ body {
   position: relative;
 }
 
+.hero-tagline {
+  line-height: 1.28;
+  max-width: min(100%, 34em);
+  position: absolute;
+  transform: translate3d(0, -250%, 0);
+  letter-spacing: 0.2rem;
+}
+
 .monogram {
   display: block;
   width: clamp(77.7px, 10.77vi, 777px);
@@ -107,12 +115,24 @@ hr {
   height: 0;
   border-bottom: 1px solid var(--foreground-shade);
   margin: 5vh 0;
+  opacity: 0.65;
 }
 
 h1 {
   white-space: nowrap;
   font-weight: 532; /* nice variable font */
   font-size: clamp(33px, 7.13vi, 151px);
+}
+
+h2 {
+  font-size: var(--fs-xl);
+  letter-spacing: -0.04em;
+  margin: 0 0 1.4rem -0.04em;
+}
+
+h3 {
+  font-size: var(--fs-md);
+  letter-spacing: -0.03em;
 }
 
 p {
@@ -152,7 +172,319 @@ a:hover {
   transform: translateY(-91%);
 }
 
+.recognition {
+  margin-top: clamp(1.1rem, 2.4vw, 1.85rem);
+  padding-bottom: clamp(0.2rem, 0.9vw, 0.55rem);
+}
+
+.award-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(1.25rem, 2.5vw, 2.25rem);
+  margin-top: 0.1rem;
+}
+
+.award-card {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: clamp(0.6rem, 1.4vw, 1rem) 0 0;
+}
+
+.award-trophies {
+  align-items: end;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: clamp(0.35rem, 1.2vw, 0.65rem);
+  justify-content: flex-start;
+  margin-bottom: 1.1rem;
+  min-height: clamp(96px, 14vw, 148px);
+}
+
+.award-trophies img {
+  display: block;
+  flex: 0 0 auto;
+  filter: none;
+  height: clamp(80px, 11vw, 128px);
+  object-fit: contain;
+  width: auto;
+}
+
+.award-trophies--five {
+  gap: clamp(0.1rem, 0.5vw, 0.35rem);
+}
+
+.award-card h3 {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  margin-bottom: 0.4rem;
+}
+
+.recognition-footnote {
+  color: var(--foreground-shade);
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 1.45;
+  margin-top: clamp(0.65rem, 1.8vw, 1.15rem);
+  max-width: 42rem;
+  text-transform: none;
+}
+
+.recognition p,
+.experience p {
+  width: auto;
+  max-width: none;
+  padding-bottom: 0;
+  text-align: left;
+}
+
+.award-card p,
+.experience-meta {
+  color: var(--foreground-shade);
+  font-size: var(--fs-sm);
+}
+
+.experience .experience-meta {
+  font-size: 0.82rem;
+}
+
+.recognition h2,
+.clients h2,
+.skills h2,
+.experience h2 {
+  color: var(--foreground-shade);
+  font-family: var(--body-font);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  line-height: 1;
+  margin: 0 0 clamp(1rem, 2.2vw, 1.65rem);
+  padding: 0;
+  text-transform: uppercase;
+}
+
+.clients {
+  margin-top: clamp(0.8rem, 2vw, 1.4rem);
+}
+
+.clients-grid {
+  align-items: center;
+  display: grid;
+  gap: clamp(1rem, 2vw, 1.5rem) clamp(0.85rem, 1.8vw, 1.35rem);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  justify-items: stretch;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.clients-grid li {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 7.75rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.clients-grid li:nth-child(4n + 1) {
+  justify-content: flex-start;
+}
+
+.clients-grid li:nth-child(4n) {
+  justify-content: flex-end;
+}
+
+.clients-grid img {
+  display: block;
+  height: auto;
+  max-height: clamp(3rem, 6vw, 4.5rem);
+  max-width: clamp(3rem, 6vw, 4.5rem);
+  object-fit: contain;
+  object-position: center;
+  opacity: 0.92;
+  width: auto;
+}
+
+.skills {
+  margin-top: clamp(0.8rem, 2vw, 1.4rem);
+}
+
+.skills-lede {
+  color: var(--foreground-shade);
+  font-size: 0.88rem;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  margin: 0 0 1rem;
+  max-width: 42rem;
+  padding-bottom: 0;
+  text-align: left;
+  text-transform: none;
+  width: auto;
+}
+
+.skills-list {
+  display: grid;
+  gap: 0.5rem 1.2rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.skills-list li {
+  border-bottom: 1px solid rgba(197, 193, 193, 0.2);
+  color: var(--foreground-color);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  padding: 0 0 0.45rem;
+  text-transform: uppercase;
+}
+
+.experience {
+  --experience-line-height: 1.32;
+  font-size: 0.94em;
+  line-height: var(--experience-line-height);
+  margin-top: clamp(1.25rem, 2.6vw, 2.35rem);
+  padding-bottom: 4vh;
+}
+
+.experience h3 {
+  font-size: var(--fs-sm);
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+}
+
+.experience-item {
+  border-left: 2px solid rgba(197, 193, 193, 0.45);
+  padding-left: clamp(1rem, 2vw, 1.35rem);
+  position: relative;
+}
+
+.experience-item + .experience-item {
+  margin-top: clamp(1.35rem, 3vw, 2.25rem);
+}
+
+.experience-heading {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 0.35rem;
+}
+
+.experience-heading p {
+  color: var(--foreground-color);
+  font-family: var(--heading-font);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.experience-inline {
+  color: var(--foreground-shade);
+  font-family: var(--body-font);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.experience-meta {
+  line-height: var(--experience-line-height);
+  margin-bottom: 0.55rem;
+}
+
+.experience-item > p:not(.experience-meta) + p {
+  margin-top: 0.65rem;
+}
+
+.experience-copy {
+  column-count: 2;
+  column-gap: clamp(1.2rem, 2.4vw, 2.2rem);
+  column-rule: 1px solid rgba(197, 193, 193, 0.16);
+}
+
+.experience-copy p {
+  break-inside: avoid;
+}
+
+.experience-copy p + p {
+  margin-top: 0.65rem;
+}
+
+.experience details {
+  border: 0;
+  border-top: 1px solid rgba(197, 193, 193, 0.28);
+  border-radius: 0;
+  line-height: var(--experience-line-height);
+  margin-top: 1rem;
+  padding: 0.65rem 0 0;
+}
+
+.experience summary {
+  color: var(--foreground-color);
+  cursor: pointer;
+  font-family: var(--body-font);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.experience ul {
+  display: grid;
+  gap: 0.45rem;
+  list-style-position: outside;
+  margin: 0.55rem 0 0 1rem;
+}
+
+.experience li {
+  line-height: var(--experience-line-height);
+  padding-left: 0.2rem;
+}
+
+.site-footer {
+  border-top: 1px solid color-mix(in srgb, var(--foreground-shade) 55%, transparent);
+  margin-top: clamp(2rem, 6vw, 4rem);
+  padding-top: clamp(0.8rem, 2vw, 1.2rem);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: clamp(0.7rem, 0.4vw + 0.62rem, 0.82rem);
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--foreground-shade) 82%, transparent);
+  text-transform: none;
+}
+
+.site-footer p {
+  width: auto;
+  margin: 0;
+  padding-bottom: 0.6em;
+  text-align: left;
+}
+
 @media (max-width: 967px) {
+  h1 {
+    white-space: normal;
+  }
+
+  .hero-tagline {
+    position: relative;
+    transform: none;
+    margin-bottom: 1.5rem;
+    max-width: 100%;
+  }
+
+  .content-bottom > p {
+    width: 100%;
+  }
+
   .me {
     position: relative;
     top: 0;
@@ -160,6 +492,44 @@ a:hover {
     transform: translate3d(-10%, -6%, 0);
     margin-top: -12vh;
     width: 120%;
+  }
+
+  .recognition {
+    margin-top: clamp(1rem, 4.5vw, 1.85rem);
+    padding-bottom: clamp(0.2rem, 0.9vw, 0.5rem);
+  }
+
+  .experience {
+    margin-top: clamp(1.1rem, 5vw, 2rem);
+  }
+
+  .experience-copy {
+    column-count: 1;
+    column-rule: 0;
+  }
+
+  .skills-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .award-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .award-card {
+    padding: clamp(0.85rem, 3vw, 1.15rem) 0 0;
+  }
+
+  .site-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+}
+
+@media (max-width: 620px) {
+  .skills-list {
+    grid-template-columns: 1fr;
   }
 }
 
