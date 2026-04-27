@@ -1,7 +1,23 @@
 /* dainkennison.com styles, by... um... dain kennison */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-VariableFont_opsz,wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Unbounded";
+  src: url("/fonts/Unbounded-VariableFont_wght.ttf") format("truetype");
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --heading-font: "Unbounded", sans-serif;
-  --body-font: "Inter", sans-serif; /* thanks google fonts */
+  --body-font: "Inter", sans-serif;
 
   /* thanks fluid-type-scale.com */
   --fs-sm: clamp(0.8rem, -0.07vi + 0.82rem, 0.73rem);
