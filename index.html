@@ -20,10 +20,12 @@
   <meta name="apple-mobile-web-app-title" content="dainbrain" />
   <link rel="manifest" href="/site.webmanifest" />
   <link href="https://www.dainkennison.com/" rel="canonical" />
+  <link rel="preload" href="/fonts/Inter-VariableFont_opsz,wght.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/Unbounded-VariableFont_wght.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/src/styles.css">
 </head>
 <body>
-  <div class="container">
+  <main class="container">
     <div class="content">
       <img src="dk.svg" class="monogram" alt="a logo monogram made from my initials - D.K.">
       <hr>
@@ -31,7 +33,7 @@
       <hr>
       <!-- <img src="me.avif" class="me" alt="a picture of me"> -->
       <div class="content-bottom">
-        <canvas class="me" id="canvas" role="img" aria-label="Portrait of Dain Kennison, interactive 3D particle effect"></canvas>
+        <canvas class="me" id="canvas" role="img" aria-label="Portrait of Dain Kennison, interactive 3D particle effect" width="1152" height="1152"></canvas>
         <h5 class="hero-tagline">Strategy &bull; Design &bull; Technology</h5>
         <p>I&rsquo;m Dain Kennison&mdash;a name my parents drew from Tolkien&rsquo;s <i>The Hobbit</i>&mdash;and I&rsquo;ve spent over 25 years in branding, product/UX/UI design, and web/app development. I am currently consulting as a Creative Technologist. Over the course of my career, and as Head of Design at <a href="https://www.lavisual.com" target="_blank">La Visual</a>, I have been fortunate enough to collaborate with dozens of brands, big and small, crafting solutions that blend creativity, technology, and purpose. Above all, I&rsquo;m a sinner saved by grace, a follower of Jesus Christ, striving to reflect His love in my work and life. I recently moved from Southern California to Boise, Idaho with my wonderful wife and four children. <a href="https://www.bldhrd.com" target="_blank">BLDHRD</a>. <a href="https://www.youtube.com/watch?v=8tzRfzQb8V8" target="_blank">Reel</a>.</p>
         <img src="dk-sig-light.svg" class="signature" alt="my written signature">
@@ -41,27 +43,27 @@
         <h2 id="awards-heading">Awards</h2>
         <div class="award-grid">
           <article class="award-card">
-            <div class="award-trophies award-trophies--three" aria-label="Three Communicator gold awards of excellence">
-              <img src="/awards/Communicator_Award_of_Excellence.webp" width="420" height="420" alt="">
-              <img src="/awards/Communicator_Award_of_Excellence.webp" width="420" height="420" alt="">
-              <img src="/awards/Communicator_Award_of_Excellence.webp" width="420" height="420" alt="">
+            <div class="award-trophies award-trophies--three">
+              <img src="/awards/Communicator_Award_of_Excellence-128.webp" srcset="/awards/Communicator_Award_of_Excellence-80.webp 23w, /awards/Communicator_Award_of_Excellence-128.webp 37w" sizes="(max-width: 967px) 23px, 37px" width="37" height="128" alt="">
+              <img src="/awards/Communicator_Award_of_Excellence-128.webp" srcset="/awards/Communicator_Award_of_Excellence-80.webp 23w, /awards/Communicator_Award_of_Excellence-128.webp 37w" sizes="(max-width: 967px) 23px, 37px" width="37" height="128" alt="">
+              <img src="/awards/Communicator_Award_of_Excellence-128.webp" srcset="/awards/Communicator_Award_of_Excellence-80.webp 23w, /awards/Communicator_Award_of_Excellence-128.webp 37w" sizes="(max-width: 967px) 23px, 37px" width="37" height="128" alt="">
             </div>
             <h3>Communicator</h3>
           </article>
           <article class="award-card">
-            <div class="award-trophies award-trophies--five" aria-label="One Davey gold trophy and four Davey silver trophies">
-              <img src="/awards/Trophy_DAVEY_gold_TRANSPARENT.webp" width="420" height="420" alt="">
-              <img src="/awards/Trophy_DAVEY_silver_TRANSPARENT.webp" width="420" height="420" alt="">
-              <img src="/awards/Trophy_DAVEY_silver_TRANSPARENT.webp" width="420" height="420" alt="">
-              <img src="/awards/Trophy_DAVEY_silver_TRANSPARENT.webp" width="420" height="420" alt="">
-              <img src="/awards/Trophy_DAVEY_silver_TRANSPARENT.webp" width="420" height="420" alt="">
+            <div class="award-trophies award-trophies--five">
+              <img src="/awards/Trophy_DAVEY_gold_TRANSPARENT-128.webp" srcset="/awards/Trophy_DAVEY_gold_TRANSPARENT-80.webp 34w, /awards/Trophy_DAVEY_gold_TRANSPARENT-128.webp 54w" sizes="(max-width: 967px) 34px, 54px" width="54" height="128" alt="">
+              <img src="/awards/Trophy_DAVEY_silver_TRANSPARENT-128.webp" srcset="/awards/Trophy_DAVEY_silver_TRANSPARENT-80.webp 34w, /awards/Trophy_DAVEY_silver_TRANSPARENT-128.webp 54w" sizes="(max-width: 967px) 34px, 54px" width="54" height="128" alt="">
+              <img src="/awards/Trophy_DAVEY_silver_TRANSPARENT-128.webp" srcset="/awards/Trophy_DAVEY_silver_TRANSPARENT-80.webp 34w, /awards/Trophy_DAVEY_silver_TRANSPARENT-128.webp 54w" sizes="(max-width: 967px) 34px, 54px" width="54" height="128" alt="">
+              <img src="/awards/Trophy_DAVEY_silver_TRANSPARENT-128.webp" srcset="/awards/Trophy_DAVEY_silver_TRANSPARENT-80.webp 34w, /awards/Trophy_DAVEY_silver_TRANSPARENT-128.webp 54w" sizes="(max-width: 967px) 34px, 54px" width="54" height="128" alt="">
+              <img src="/awards/Trophy_DAVEY_silver_TRANSPARENT-128.webp" srcset="/awards/Trophy_DAVEY_silver_TRANSPARENT-80.webp 34w, /awards/Trophy_DAVEY_silver_TRANSPARENT-128.webp 54w" sizes="(max-width: 967px) 34px, 54px" width="54" height="128" alt="">
             </div>
             <h3>Davey</h3>
           </article>
           <article class="award-card">
-            <div class="award-trophies award-trophies--two" aria-label="Two W3 gold trophies">
-              <img src="/awards/w3awards_gold_trophy.webp" width="420" height="420" alt="">
-              <img src="/awards/w3awards_gold_trophy.webp" width="420" height="420" alt="">
+            <div class="award-trophies award-trophies--two">
+              <img src="/awards/w3awards_gold_trophy-128.webp" srcset="/awards/w3awards_gold_trophy-80.webp 32w, /awards/w3awards_gold_trophy-128.webp 51w" sizes="(max-width: 967px) 32px, 51px" width="51" height="128" alt="">
+              <img src="/awards/w3awards_gold_trophy-128.webp" srcset="/awards/w3awards_gold_trophy-80.webp 32w, /awards/w3awards_gold_trophy-128.webp 51w" sizes="(max-width: 967px) 32px, 51px" width="51" height="128" alt="">
             </div>
             <h3>W3</h3>
           </article>
@@ -73,28 +75,28 @@
         <h2 id="clients-heading">Clients</h2>
         <ul class="clients-grid">
           <li>
-            <img src="/logos/nfl-logo-white.svg" alt="NFL" loading="lazy" decoding="async">
+            <img src="/logos/nfl-logo-white.svg" alt="NFL" loading="lazy" decoding="async" width="179" height="246">
           </li>
           <li>
-            <img src="/logos/fox.svg" alt="FOX" loading="lazy" decoding="async">
+            <img src="/logos/fox.svg" alt="FOX" loading="lazy" decoding="async" width="1000" height="431">
           </li>
           <li>
-            <img src="/logos/us-doe.svg" alt="US Department of Education" loading="lazy" decoding="async">
+            <img src="/logos/us-doe.svg" alt="US Department of Education" loading="lazy" decoding="async" width="499" height="518">
           </li>
           <li>
-            <img src="/logos/us-dot.svg" alt="US Department of Transportation" loading="lazy" decoding="async">
+            <img src="/logos/us-dot.svg" alt="US Department of Transportation" loading="lazy" decoding="async" width="247" height="248">
           </li>
           <li>
-            <img src="/logos/lincoln.svg" alt="Lincoln Motor Company" loading="lazy" decoding="async">
+            <img src="/logos/lincoln.svg" alt="Lincoln Motor Company" loading="lazy" decoding="async" width="478" height="181">
           </li>
           <li>
-            <img src="/logos/critics-choice-awards.svg" alt="Critics Choice Awards" loading="lazy" decoding="async">
+            <img src="/logos/critics-choice-awards.svg" alt="Critics Choice Awards" loading="lazy" decoding="async" width="280" height="188">
           </li>
           <li>
-            <img src="/logos/clc.svg" alt="Collegiate Licensing Company" loading="lazy" decoding="async">
+            <img src="/logos/clc.svg" alt="Collegiate Licensing Company" loading="lazy" decoding="async" width="377" height="150">
           </li>
           <li>
-            <img src="/logos/mediatemple.svg" alt="Media Temple" loading="lazy" decoding="async">
+            <img src="/logos/mediatemple.svg" alt="Media Temple" loading="lazy" decoding="async" width="1080" height="425">
           </li>
         </ul>
       </section>
@@ -176,7 +178,7 @@
         <p>dain [at] dainkennison.com</p>
       </footer>
     </div>
-  </div>
+  </main>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

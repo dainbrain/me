@@ -9,7 +9,7 @@
     Content-Security-Policy = "default-src 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self'; style-src-attr 'none'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; media-src 'self'; frame-src 'none'; child-src 'none'; worker-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; manifest-src 'self'; upgrade-insecure-requests; block-all-mixed-content"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "accelerometer=(), autoplay=(), browsing-topics=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+    Permissions-Policy = "accelerometer=(self), autoplay=(), browsing-topics=(), camera=(), geolocation=(), gyroscope=(self), magnetometer=(), microphone=(), payment=(), usb=()"
     X-Frame-Options = "DENY"
     X-XSS-Protection = "0"
     X-Permitted-Cross-Domain-Policies = "none"
