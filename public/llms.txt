@@ -5,7 +5,7 @@
 ## Site
 
 - **Name:** Dain Kennison
-- **URL:** https://www.dainkennison.com/
+- **URL:** https://dainkennison.com/
 - **Format:** Single-page portfolio (HTML). No public API.
 
 ## Summary
