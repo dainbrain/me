@@ -1,0 +1,46 @@
+# Dain Kennison — dainkennison.com
+
+> Machine-readable summary for LLMs and discovery tools. Factual; mirrors the public site.
+
+## Site
+
+- **Name:** Dain Kennison
+- **URL:** https://www.dainkennison.com/
+- **Format:** Single-page portfolio (HTML). No public API.
+
+## Summary
+
+Dain Kennison is a creative technologist and designer/developer with 25+ years in branding, product, UX/UI, and web/app development. He consults on work that spans strategy, design, and front-end implementation—often design systems, product interfaces, campaigns, and interactive brand experiences.
+
+He was Head of Design at La Visual (Culver City, CA) through early 2025 and has collaborated with clients across sectors including sports, media, government, automotive, and licensing. He lives in Boise, Idaho.
+
+The page includes sections for awards (Communicator, Davey, W3), selected client logos, a skills list, and professional experience.
+
+## Primary topics
+
+- Design leadership
+- Brand and identity
+- Product and UX
+- Design systems
+- Interactive and experiential work
+- Motion and UI
+- Illustration (2D / 3D)
+- Front-end and creative technology
+- Research and accessibility
+- Performance and standards
+- Workshops and alignment
+- AI-assisted workflow
+
+## Contact
+
+- **Email:** dain@dainkennison.com
+
+## On-page links (context)
+
+- La Visual: https://www.lavisual.com
+- BLDHRD: https://www.bldhrd.com
+- Work reel (YouTube): https://www.youtube.com/watch?v=8tzRfzQb8V8
+
+## Usage
+
+Content is for accurate representation of the individual and site. Do not infer credentials or clients not stated on the live page.

@@ -116,8 +116,18 @@ body {
 }
 
 .hero-tagline {
-  line-height: 1.28;
+  width: auto;
   max-width: min(100%, 34em);
+  margin: 0;
+  padding-bottom: 0;
+  text-align: left;
+  font-family: var(--heading-font);
+  line-height: 1.28;
+  text-transform: uppercase;
+  font-weight: 700;
+  text-box: trim-both cap alphabetic;
+  color: var(--foreground-color);
+  font-size: var(--fs-sm);
   position: absolute;
   transform: translate3d(0, -250%, 0);
   letter-spacing: 0.2rem;
