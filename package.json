@@ -3,6 +3,7 @@
     "three": "^0.174.0"
   },
   "devDependencies": {
+    "sharp": "^0.34.5",
     "vite": "^6.2.2"
   },
   "scripts": {

@@ -200,10 +200,10 @@ export function initPortraitScene(canvas) {
 
   // Load images.
   const img = new Image();
-  img.src = '/me-nobg.png';
+  img.src = '/me-nobg.webp';
 
   const depthImg = new Image();
-  depthImg.src = '/me-nobg-depthmap.jpg';
+  depthImg.src = '/me-nobg-depthmap.webp';
 
   let imagesLoaded = 0;
 
