@@ -1,0 +1,53 @@
+/* Email signature preview — loaded externally so CSP style-src 'self' applies */
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  color: #000;
+  background: #fff;
+}
+
+.container {
+  position: relative;
+  width: 320px;
+  padding: 40px 0;
+}
+
+.monogram {
+  display: block;
+  width: 100px;
+  height: auto;
+}
+
+.indent {
+  padding-top: 5px;
+  margin-left: 27px;
+  color: #000;
+}
+
+.indent h1 {
+  text-transform: uppercase;
+  font-weight: bold;
+  font-size: 13px;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.indent p {
+  font-size: 11px;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.indent p + p {
+  margin-top: 0;
+}
+
+.indent a {
+  color: #000;
+  text-decoration: underline;
+}
+
+.indent a:hover {
+  color: #000;
+}
