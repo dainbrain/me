@@ -46,3 +46,9 @@
   for = "/awards/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# Email signature monogram: stable URL, long cache (linked from many inboxes)
+[[headers]]
+  for = "/emailsig-mgram.png"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
