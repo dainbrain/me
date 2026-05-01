@@ -47,8 +47,10 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# Email signature monogram: stable URL, long cache (linked from many inboxes)
+# Email signature monogram: stable URL, long cache; CORP cross-origin so Gmail
+# and other mail clients can embed this single asset (global /* uses same-origin).
 [[headers]]
   for = "/emailsig-mgram.png"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+    Cross-Origin-Resource-Policy = "cross-origin"
