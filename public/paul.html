@@ -5,13 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>For Paul — Dain Kennison</title>
   <meta name="robots" content="noindex, nofollow">
-  <meta name="description" content="An application, built with your own tool.">
+  <meta name="description" content="A gold-and-black congrats, built with your own tool.">
+  <meta name="theme-color" content="#0A0907">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preload" href="/fonts/Unbounded-VariableFont_wght.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/fonts/Inter-VariableFont_opsz,wght.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/AlbertSans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/paul-gold.webp" as="image">
   <link rel="stylesheet" href="/paul.css">
 </head>
 <body>
+
+  <div class="bg" aria-hidden="true"><canvas class="bg-canvas" id="gl"></canvas><div class="bg-veil"></div></div>
 
   <div class="gate" id="gate">
     <div class="gate-inner">
@@ -30,47 +34,38 @@
     </div>
   </div>
 
-  <main class="page" id="page">
+  <main class="wrap" id="page">
+    <p class="congrats">Congrats</p>
+    <p class="subline">on Renaissance Geek, Paul.</p>
+    <hr class="rule">
 
-    <header class="hero">
-      <div class="hero-text">
-        <p class="hello">Hey Paul,</p>
-        <h2 class="lead">you are building the thing I most want to build.</h2>
-        <p class="sub">Dain Kennison. We crossed paths back in your jQuery&nbsp;UI days, when I was at Media&nbsp;Temple. Good to see you again, on this.</p>
+    <div class="body">
+      <div class="note">
+        <p>Renaissance Geek is a great idea, and a real one. It goes straight at a problem I run into every single day, and I am genuinely excited that it exists.</p>
+        <p>Excited enough to actually use Impeccable, not just admire it. This page is the first thing I have built with it, alongside Claude. It came together in about an hour, and I still have a lot to learn on it, but it was a joy.</p>
+        <p>We go back a little, to your jQuery&nbsp;UI days when I was at Media&nbsp;Temple, so call this half application and half hello. I would love to be considered for the Design Engineer role, and to put my years as a creative and UX director, and a designer who ships, toward helping build it. Either way, thank you for making this, and I would love to catch up.</p>
+        <p class="signoff">Built in your gold, to Impeccable&rsquo;s spec, with your own tool. You said AI raised the floor, so here is me reaching for the ceiling.</p>
       </div>
-      <div class="hero-portrait">
-        <img src="/me-nobg.webp" alt="Portrait of Dain Kennison" width="600" height="600">
+      <div class="links-wrap">
+        <nav class="links" aria-label="Work">
+          <a href="https://dainkennison.com">my site</a>
+          <a href="https://github.com/oddbits-us/oddbits">oddbits</a>
+        </nav>
+        <nav class="socials" aria-label="Elsewhere">
+          <a href="https://github.com/dainbrain">GitHub</a>
+          <a href="https://www.linkedin.com/in/dainkennison">LinkedIn</a>
+          <a href="https://x.com/dainbrain">X</a>
+          <a href="https://www.instagram.com/dainbrain">Instagram</a>
+        </nav>
       </div>
-    </header>
-
-    <section class="prose">
-      <p>The human-agent interface is the thing I keep circling. The model can do almost anything, but the interface never helps you discover what to <em>ask</em>. That gap is a design-engineering problem, and it is where I live.</p>
-      <p>I use AI agents every day, not eventually. Claude is my primary, end to end across research, design, code, and deployment, with custom tooling and agents I wired myself. I have not handed my judgment to it: I delegate when it is smart and stay responsible for everything I ship. And I care about the last 10 percent more than is strictly healthy.</p>
-    </section>
-
-    <section class="proof">
-      <p>Here is the fastest way to show you rather than tell you: this page is built with <strong>impeccable</strong>. Yes, yours. It felt right to apply to your company using your own tool, so I installed it and designed this to its spec, no numbered eyebrows, slop test passed.</p>
-    </section>
-
-    <section class="links">
-      <ul class="link-list">
-        <li><a href="https://dainkennison.com">dainkennison.com</a><span>hand-coded Three.js / WebGL: a depth-map point cloud, custom shaders, lazy-loaded so it never blocks paint</span></li>
-        <li><a href="https://github.com/dainbrain/me">github.com/dainbrain/me</a><span>the source, because a designer who codes should show the code</span></li>
-        <li><a href="https://github.com/oddbits-us/oddbits">oddbits</a><span>my own tool suite, designed and shipped end to end, MIT, on npm</span></li>
-      </ul>
-    </section>
-
-    <section class="close">
-      <p>Twenty-five years doing the brand and the build, both. NFL+ identity and launch (Gold at the Communicator and Davey Awards), fintech design systems, government data-viz. Right now I am a creative technologist at Rocket Mortgage, taking branded campaign sites from idea to design to enterprise production.</p>
-      <p>HTML, CSS, JS, TypeScript, Angular are second nature, WebGL and canvas too. Resume is on the email I sent careers@ (it started with Ultramarine, of course). I would love a first call.</p>
-    </section>
+    </div>
 
     <footer class="foot">
       <span class="foot-name">Dain Kennison</span>
-      <span>Boise, ID / Remote</span>
+      <span>Hybrid</span>
       <a href="mailto:dain@dainkennison.com">dain@dainkennison.com</a>
+      <a href="tel:+18053385542">(805)&nbsp;338-5542</a>
     </footer>
-
   </main>
 
   <script type="module" src="/paul.js"></script>
