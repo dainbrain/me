@@ -1,2 +1,5 @@
 # Pretty URL for email signature preview (copied layout matches /sig)
 /sig /sig.html 200
+
+# Gated application page (/paul)
+/paul /paul.html 200
