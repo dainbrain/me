@@ -1,0 +1,6 @@
+/* Loaded only when JavaScript is disabled (via <noscript> in paul.html).
+   The page needs JS to unlock the gate and run the shader, so without it we
+   drop the gate entirely and reveal the content statically — readable, no FOUC. */
+.gate{display:none!important;}
+.gate-mono,.gate-title,.gate-copy,.gate-form,.gate-hint,
+.congrats,.subline,.rule,.body,.foot{opacity:1!important;transform:none!important;}

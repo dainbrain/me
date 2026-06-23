@@ -107,29 +107,31 @@ body.open .gate{opacity:0;visibility:hidden;pointer-events:none;}
   .body{grid-template-columns:1.5fr 1fr;align-items:start;gap:clamp(2rem,5vw,4rem);}
 }
 
-/* ---------- entrance: right-to-left, opacity, ease-out-quint, ~0.68s, staggered ---------- */
-body.js .gate-mono,body.js .gate-title,body.js .gate-copy,body.js .gate-form,body.js .gate-hint,
-body.js .congrats,body.js .subline,body.js .rule,body.js .body,body.js .foot{opacity:0;transform:translateX(30px);}
+/* ---------- entrance: hidden by default (no FOUC), revealed by JS via .loaded/.open ----------
+   The hidden state is applied at first paint so nothing flashes before the JS module runs.
+   No-JS users get /paul-nojs.css (via <noscript>) which drops the gate and reveals all. */
+.gate-mono,.gate-title,.gate-copy,.gate-form,.gate-hint,
+.congrats,.subline,.rule,.body,.foot{opacity:0;transform:translateX(30px);}
 
-body.js.loaded .gate-mono,body.js.loaded .gate-title,body.js.loaded .gate-copy,body.js.loaded .gate-form,body.js.loaded .gate-hint{
+body.loaded .gate-mono,body.loaded .gate-title,body.loaded .gate-copy,body.loaded .gate-form,body.loaded .gate-hint{
   opacity:1;transform:none;transition:opacity .68s var(--quint),transform .68s var(--quint);}
-body.js.loaded .gate-title{transition-delay:.07s;}
-body.js.loaded .gate-copy{transition-delay:.13s;}
-body.js.loaded .gate-form{transition-delay:.19s;}
-body.js.loaded .gate-hint{transition-delay:.25s;}
+body.loaded .gate-title{transition-delay:.07s;}
+body.loaded .gate-copy{transition-delay:.13s;}
+body.loaded .gate-form{transition-delay:.19s;}
+body.loaded .gate-hint{transition-delay:.25s;}
 
-body.js.open .congrats,body.js.open .subline,body.js.open .rule,body.js.open .body,body.js.open .foot{
+body.open .congrats,body.open .subline,body.open .rule,body.open .body,body.open .foot{
   opacity:1;transform:none;transition:opacity .68s var(--quint),transform .68s var(--quint);}
-body.js.open .subline{transition-delay:.08s;}
-body.js.open .rule{transition-delay:.14s;}
-body.js.open .body{transition-delay:.2s;}
-body.js.open .foot{transition-delay:.26s;}
+body.open .subline{transition-delay:.08s;}
+body.open .rule{transition-delay:.14s;}
+body.open .body{transition-delay:.2s;}
+body.open .foot{transition-delay:.26s;}
 
 @media (prefers-reduced-motion:reduce){
-  body.js .gate-mono,body.js .gate-title,body.js .gate-copy,body.js .gate-form,body.js .gate-hint,
-  body.js .congrats,body.js .subline,body.js .rule,body.js .body,body.js .foot{opacity:1;transform:none;}
-  body.js.loaded .gate-mono,body.js.loaded .gate-title,body.js.loaded .gate-copy,body.js.loaded .gate-form,body.js.loaded .gate-hint,
-  body.js.open .congrats,body.js.open .subline,body.js.open .rule,body.js.open .body,body.js.open .foot{transition:none;}
+  .gate-mono,.gate-title,.gate-copy,.gate-form,.gate-hint,
+  .congrats,.subline,.rule,.body,.foot{opacity:1;transform:none;}
+  body.loaded .gate-mono,body.loaded .gate-title,body.loaded .gate-copy,body.loaded .gate-form,body.loaded .gate-hint,
+  body.open .congrats,body.open .subline,body.open .rule,body.open .body,body.open .foot{transition:none;}
   .gate{transition:opacity .01s;}.gate.shake{animation:none;}
   .gate-btn::after{display:none;}
   a,.gate-input,.links a::after{transition:none;}
